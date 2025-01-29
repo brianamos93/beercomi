@@ -52,12 +52,12 @@ router.post("/login", async (req: Request, res: Response) => {
 
 router.get("/users", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT users.id, users.username, todos.task, todos.completed, todos. FROM users INNER JOIN todos ON users.id = todos.userid")
+		const result = await pool.query("SELECT users.id, users.username, beers.name, beers.description FROM users INNER JOIN todos ON users.id = beers.userid")
 		const users: User[] = result.rows
 		res.json(users)
 	} catch (error) {
 		console.error("Error fetching users", error)
-		res.status(500).json({ error: "Error fetching todos" })
+		res.status(500).json({ error: "Error fetching users" })
 	}
 })
 
@@ -66,6 +66,16 @@ router.post("/signup", async ( req: Request, res: Response ) => {
 
 	const saltRounds = 10
 	const passwordHash = await bcrypt.hash(password, saltRounds)
+
+	const usernameCheck = await pool.query("SELECT id FROM users WHERE username = $1", [username])
+	const emailCheck = await pool.query("SELECT id FROM users WHERE email = $1", [email])
+
+	if (usernameCheck.rowCount != 0) {
+		return res.status(500).json({ error: "Error"})
+	}
+	if (emailCheck.rowCount != 0) {
+		return res.status(500).json({ error: "Error" })
+	}
 
 	try {
 		const result = await pool.query(
@@ -83,7 +93,7 @@ router.get("/user/:id", async (req: Request, res: Response ) => {
 	const userID = parseInt(req.params.id, 10);
 	// TypeScript type-based input validation
 	if (isNaN(userID)) {
-		return res.status(400).json({ error: "Invalid todo ID" });
+		return res.status(400).json({ error: "Invalid user ID" });
 	  }
 	  try {
 		const result = await pool.query("SELECT todos.task FROM users JOIN todos ON users.id = todos.userid WHERE users.id = $1 ", [userID]);
