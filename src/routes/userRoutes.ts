@@ -9,7 +9,30 @@ interface User {
 	id: number,
 	username: string,
 	email: string,
-	password: string
+	password: string,
+	role: string,
+}
+
+async function tokenUser(decodedToken: any) {
+	return await pool.query(
+   "SELECT id FROM users WHERE id = $1",[decodedToken.id]
+	);
+  }
+
+const getTokenFrom = (req: Request) => {
+	const authorization = req.get('Authorization')
+	if (authorization && authorization.startsWith('Bearer ')) {
+	  return authorization.replace('Bearer ', '')
+	}
+	return null
+  }
+
+function decodeToken(req: Request) {
+	return jwt.verify(getTokenFrom(req), process.env.SECRET);
+  }
+
+async function userData(userId: number) {
+	return await pool.query("SELECT id FROM users WHERE id = $1", [userId])
 }
 
 router.post("/login", async (req: Request, res: Response) => {
@@ -52,7 +75,7 @@ router.post("/login", async (req: Request, res: Response) => {
 
 router.get("/users", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT users.id, users.username, beers.name, beers.description FROM users INNER JOIN todos ON users.id = beers.userid")
+		const result = await pool.query("SELECT users.id, users.username, users.role, beers.name, beers.description FROM users INNER JOIN todos ON users.id = beers.userid")
 		const users: User[] = result.rows
 		res.json(users)
 	} catch (error) {
@@ -67,6 +90,7 @@ router.post("/signup", async ( req: Request, res: Response ) => {
 	const saltRounds = 10
 	const passwordHash = await bcrypt.hash(password, saltRounds)
 
+	try {
 	const usernameCheck = await pool.query("SELECT id FROM users WHERE username = $1", [username])
 	const emailCheck = await pool.query("SELECT id FROM users WHERE email = $1", [email])
 
@@ -76,8 +100,6 @@ router.post("/signup", async ( req: Request, res: Response ) => {
 	if (emailCheck.rowCount != 0) {
 		return res.status(500).json({ error: "Error" })
 	}
-
-	try {
 		const result = await pool.query(
 			"INSERT INTO users(username, email, password) VALUES($1, $2, $3) RETURNING *", [username, email, passwordHash]
 		)
@@ -96,7 +118,7 @@ router.get("/user/:id", async (req: Request, res: Response ) => {
 		return res.status(400).json({ error: "Invalid user ID" });
 	  }
 	  try {
-		const result = await pool.query("SELECT todos.task FROM users JOIN todos ON users.id = todos.userid WHERE users.id = $1 ", [userID]);
+		const result = await pool.query("SELECT beers.name FROM users JOIN beers ON users.id = beers.userid WHERE users.id = $1 ", [userID]);
 		const user: User[] = result.rows;
 		res.json(user);
 	  } catch (error) {
@@ -112,7 +134,15 @@ router.delete("/user/:id", async (req: Request, res: Response) => {
 	if (isNaN(userID)) {
 	  return res.status(400).json({ error: "Invalid user ID" });
 	}
- 
+	const decodedToken = decodeToken(req)
+	if (!decodedToken.id) {
+	 return res.status(401).json({ error: 'token invalid'})
+	}
+	const user = await tokenUser(decodedToken)
+	const userDataResult = await userData(userID)
+	if (user.rows[0].id !== userDataResult.rows[0].id || userDataResult.rows[0].role !== "admin") {
+		return res.status(400).json({ error: "User not authorized" })
+	}
 	try {
 	  await pool.query("DELETE FROM users WHERE id = $1", [userID]);
 	  res.sendStatus(200);
