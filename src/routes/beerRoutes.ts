@@ -82,7 +82,7 @@ router.post("/", async (req: Request, res: Response) => {
  
 	try {
 	  const result = await pool.query(
-		"INSERT INTO beers (name, brewery, description, ibu, abv, color, userid) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+		"INSERT INTO beers (name, brewery_id, description, ibu, abv, color, author) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
 		[name, brewery, description, ibu, abv, color, user.rows[0].id]
 	  );
 	  const createdBeer: Beer = result.rows[0];
