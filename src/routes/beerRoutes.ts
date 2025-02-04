@@ -12,6 +12,7 @@ interface Beer {
 	ibu: number;
 	abv: number;
 	color: string;
+	author: string
 
 }
 
@@ -94,8 +95,8 @@ router.post("/", async (req: Request, res: Response) => {
 
 router.delete("/:id", async (req: Request, res: Response) => {
 	const beerID = parseInt(req.params.id, 10);
-	const taskcheck = await beerlookup(beerID)
-	if (taskcheck.rowCount == 0) {
+	const beercheck = await beerlookup(beerID)
+	if (beercheck.rowCount == 0) {
 	 return res.status(401).json({ error: 'beer does not exist'})
 	}
 	const decodedToken = decodeToken(req)
