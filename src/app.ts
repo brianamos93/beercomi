@@ -7,6 +7,7 @@ const cors = require('cors');
 
 import beerRoutes from "./routes/beerRoutes"
 import userRoutes from "./routes/userRoutes";
+import breweryRoutes from "./routes/breweryRoutes"
 const middleware = require('./utils/middleware');
 
 app.use(cors({
@@ -19,6 +20,7 @@ app.use(express.json());
 app.use(middleware.requestLogger);
 
 app.use("/beers/", beerRoutes);
+app.use("/breweries/", breweryRoutes)
 app.use("/", userRoutes);
 
 app.use(middleware.unknownEndpoint);
