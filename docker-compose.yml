@@ -1,8 +1,8 @@
 services:
   postgres:
     image: postgres:latest
-    container_name: tasker
-    restart: always
+    container_name: beerkomi
+    restart: no
     ports:
       - "5432:5432"
     environment:
@@ -14,7 +14,7 @@ services:
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: pgadmin4_tasker
-    restart: always
+    restart: no
     ports:
       - "8888:80"
     environment:
