@@ -7,7 +7,6 @@ const router = Router();
 
 interface User {
 	id: number,
-	username: string,
 	email: string,
 	password: string,
 	role: string,
@@ -36,13 +35,13 @@ async function userData(userId: number) {
 }
 
 router.post("/login", async (req: Request, res: Response) => {
-	const { username, password } = req.body
+	const { email, password } = req.body
 	try {
-		const user = await pool.query("SELECT * FROM users WHERE username = $1", [username])
+		const user = await pool.query("SELECT * FROM users WHERE email = $1", [email])
 
 		if (user.rowCount === 0) {
 			return res.status(401).json({
-				error: "invalid username or password"
+				error: "invalid email or password"
 			})
 		}
 		const passwordCorrect = user === null
@@ -50,7 +49,7 @@ router.post("/login", async (req: Request, res: Response) => {
 
 		if (!(user && passwordCorrect)) {
 			return res.status(401).json({
-				error: "invalid username or password"
+				error: "invalid email or password"
 			})
 		}
 
@@ -75,7 +74,29 @@ router.post("/login", async (req: Request, res: Response) => {
 
 router.get("/users", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT users.id, users.username, users.role, beers.name, beers.description FROM users INNER JOIN todos ON users.id = beers.userid")
+		const result = await pool.query("SELECT users.id, users.email, users.role FROM users")
+		const users: User[] = result.rows
+		res.json(users)
+	} catch (error) {
+		console.error("Error fetching users", error)
+		res.status(500).json({ error: "Error fetching users" })
+	}
+})
+
+router.get("/users/beers", async (req: Request, res: Response) => {
+	try {
+		const result = await pool.query("SELECT users.id, users.email, users.role, beers.name, beers.description FROM users INNER JOIN beers ON users.id = beers.author")
+		const users: User[] = result.rows
+		res.json(users)
+	} catch (error) {
+		console.error("Error fetching users", error)
+		res.status(500).json({ error: "Error fetching users" })
+	}
+})
+
+router.get("/users/breweries", async (req: Request, res: Response) => {
+	try {
+		const result = await pool.query("SELECT users.id, users.email, users.role, breweries.name, breweries.description FROM users INNER JOIN breweries ON users.id = brewery.author")
 		const users: User[] = result.rows
 		res.json(users)
 	} catch (error) {
@@ -85,23 +106,19 @@ router.get("/users", async (req: Request, res: Response) => {
 })
 
 router.post("/signup", async ( req: Request, res: Response ) => {
-	const { username, email, password } = req.body
+	const { email, password } = req.body
 
 	const saltRounds = 10
 	const passwordHash = await bcrypt.hash(password, saltRounds)
 
 	try {
-	const usernameCheck = await pool.query("SELECT id FROM users WHERE username = $1", [username])
 	const emailCheck = await pool.query("SELECT id FROM users WHERE email = $1", [email])
 
-	if (usernameCheck.rowCount != 0) {
-		return res.status(500).json({ error: "Error"})
-	}
 	if (emailCheck.rowCount != 0) {
 		return res.status(500).json({ error: "Error" })
 	}
 		const result = await pool.query(
-			"INSERT INTO users(username, email, password) VALUES($1, $2, $3) RETURNING *", [username, email, passwordHash]
+			"INSERT INTO users(email, password) VALUES($1, $2) RETURNING *", [email, passwordHash]
 		)
 		const createdUser: User = result.rows[0]
 		res.status(201).json(createdUser)
@@ -118,12 +135,12 @@ router.get("/user/:id", async (req: Request, res: Response ) => {
 		return res.status(400).json({ error: "Invalid user ID" });
 	  }
 	  try {
-		const result = await pool.query("SELECT beers.name FROM users JOIN beers ON users.id = beers.userid WHERE users.id = $1 ", [userID]);
+		const result = await pool.query("SELECT beers.name FROM users JOIN beers ON users.id = beers.author WHERE users.id = $1 ", [userID]);
 		const user: User[] = result.rows;
 		res.json(user);
 	  } catch (error) {
-		console.error("Error fetching todos", error);
-		res.status(500).json({ error: "Error fetching todos" });
+		console.error("Error fetching user", error);
+		res.status(500).json({ error: "Error fetching user" });
 	  }
 })
 
@@ -162,6 +179,22 @@ router.put("/user/:id", async (req: Request, res: Response) => {
 	try {
 		await pool.query("UPDATE users SET password = $1 WHERE id = $2", [
 			passwordHash,
+			userID,
+     	]);
+     	res.sendStatus(200);
+   	} catch (error) {
+	console.error("Error updating todo", error);
+	res.sendStatus(500).json({ error: "Error updating todo" });
+	}
+});
+
+router.put("/user/:id/role", async (req: Request, res: Response) => {
+	const userID = parseInt(req.params.id, 10);
+	const { role } = req.body;
+
+	try {
+		await pool.query("UPDATE users SET role = $1 WHERE id = $2", [
+			role,
 			userID,
      	]);
      	res.sendStatus(200);
