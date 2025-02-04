@@ -11,7 +11,7 @@ interface Brewery {
 	dateoffounding: string;
 	date_created: Date;
 	date_updated: Date;
-	userid: string;
+	author: string;
 }
 
 async function brewerylookup(breweryID: Number) {
@@ -19,7 +19,7 @@ async function brewerylookup(breweryID: Number) {
   }
 
 async function breweryUser(breweryID: Number) {
-	return await pool.query("SELECT userid FROM breweries WHERE id = $1", [breweryID]);
+	return await pool.query("SELECT author FROM breweries WHERE id = $1", [breweryID]);
   }
 
 async function tokenUser(decodedToken: any) {
@@ -80,7 +80,7 @@ router.post("/", async (req: Request, res: Response) => {
  
 	try {
 	  const result = await pool.query(
-		"INSERT INTO breweries (name, brewery, description, ibu, abv, color, userid) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+		"INSERT INTO breweries (name, brewery, description, ibu, abv, color, author) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
 		[name, brewery, description, ibu, abv, color, user.rows[0].id]
 	  );
 	  const createdBrewery: Brewery = result.rows[0];
@@ -108,7 +108,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
  
 	const user = await tokenUser(decodedToken)
 	const breweryUserResult = await breweryUser(breweryID)
-	if (user.rows[0].id !== breweryUserResult.rows[0].userid) {
+	if (user.rows[0].id !== breweryUserResult.rows[0].author) {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
 	try {
@@ -142,7 +142,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 	const user = await tokenUser(decodedToken)
 	const breweryuser = await breweryUser(breweryID)
  
-	if (user.rows[0].id !== breweryuser.rows[0].userid) {
+	if (user.rows[0].id !== breweryuser.rows[0].author) {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
  
