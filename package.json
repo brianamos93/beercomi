@@ -25,7 +25,16 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon -L --watch '.' --ext js,ts,json --exec ts-node --files ./src/index.ts",
+    "build": "tsc",
+    "start": "node ./back/index.js",
+    "check-types": "tsc --noEmit",
+    "lint": "run-p -l -c --aggregate-output lint:*",
+    "lint:eslint": "eslint src/**/*.ts",
+    "lint:prettier": "prettier --check .",
+    "fix": "run-s -l -c fix:eslint fix:prettier",
+    "fix:eslint": "eslint --fix src/**/*.ts",
+    "fix:prettier": "prettier --write ."
   },
   "author": "",
   "license": "ISC",
