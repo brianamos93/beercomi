@@ -1,0 +1,11 @@
+POST http://localhost:3005/beers/ HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNiOGU2MzhlLTU2NmMtNGU5Yy04Y2ZmLWNlYWJjMGEwY2YyNCIsImlhdCI6MTczODY3NjU5NywiZXhwIjoxNzM4NjgwMTk3fQ.17L991nmLzMiedAZTBtG4SB0tCPBKDM8zUnuXnMvMcA
+
+{
+	"name": "The Beer",
+	"description": "A very standard beer. It can be enjoyed by anyone.",
+	"ibu": "31",
+	"abv": "5",
+	"color": "golden"
+}
