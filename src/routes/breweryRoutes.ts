@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 const jwt = require('jsonwebtoken')
 import pool from "../utils/db";
-import { tokenUser, getTokenFrom, decodeToken } from "../utils/userlib";
+import { tokenUser, decodeToken } from "../utils/userlib";
 
 const router = Router();
 
@@ -48,7 +48,8 @@ router.get("/:id", async (req: Request, res: Response) => {
 
 router.post("/", async (req: Request, res: Response) => {
 	const { name, location, date_of_founding } = req.body;
-	const decodedToken = jwt.verify(getTokenFrom(req), process.env.SECRET)
+	const decodedToken = decodeToken(req)
+	//const decodedToken = jwt.verify(getTokenFrom(req), process.env.SECRET)
 	if (!decodedToken.id) {
 	 return res.status(401).json({ error: 'token invalid'})
 	}
