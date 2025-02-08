@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 const jwt = require('jsonwebtoken')
 import pool from "../utils/db";
+import { tokenUser, getTokenFrom, decodeToken } from "../utils/userlib"
 
 const router = Router();
 
@@ -22,24 +23,6 @@ async function beerlookup(beerID: Number) {
 
 async function beerUser(beerID: Number) {
 	return await pool.query("SELECT userid FROM beers WHERE id = $1", [beerID]);
-  }
-
-async function tokenUser(decodedToken: any) {
-	return await pool.query(
-   "SELECT id FROM users WHERE id = $1",[decodedToken.id]
-	);
-  }
-
-const getTokenFrom = (req: Request) => {
-	const authorization = req.get('Authorization')
-	if (authorization && authorization.startsWith('Bearer ')) {
-	  return authorization.replace('Bearer ', '')
-	}
-	return null
-  }
-
-function decodeToken(req: Request) {
-	return jwt.verify(getTokenFrom(req), process.env.SECRET);
   }
 
 router.get("/", async (req: Request, res: Response) => {
@@ -109,8 +92,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 	}
  
 	const user = await tokenUser(decodedToken)
-	const beerUserResult = await beerUser(beerID)
-	if (user.rows[0].id !== beerUserResult.rows[0].userid) {
+	if (user.rows[0].role !== "admin") {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
 	try {

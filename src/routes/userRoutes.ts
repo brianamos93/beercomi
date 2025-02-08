@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import pool from "../utils/db";
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
+import { tokenUser, getTokenFrom, decodeToken } from "../utils/userlib";
 
 const router = Router();
 
@@ -12,26 +13,8 @@ interface User {
 	role: string,
 }
 
-async function tokenUser(decodedToken: any) {
-	return await pool.query(
-   "SELECT id FROM users WHERE id = $1",[decodedToken.id]
-	);
-  }
-
-const getTokenFrom = (req: Request) => {
-	const authorization = req.get('Authorization')
-	if (authorization && authorization.startsWith('Bearer ')) {
-	  return authorization.replace('Bearer ', '')
-	}
-	return null
-  }
-
-function decodeToken(req: Request) {
-	return jwt.verify(getTokenFrom(req), process.env.SECRET);
-  }
-
-async function userData(userId: number) {
-	return await pool.query("SELECT id FROM users WHERE id = $1", [userId])
+async function userIdGet(userId: number) {
+	return await pool.query("SELECT id, role FROM users WHERE id = $1", [userId])
 }
 
 router.post("/login", async (req: Request, res: Response) => {
@@ -156,7 +139,7 @@ router.delete("/user/:id", async (req: Request, res: Response) => {
 	 return res.status(401).json({ error: 'token invalid'})
 	}
 	const user = await tokenUser(decodedToken)
-	const userDataResult = await userData(userID)
+	const userDataResult = await userIdGet(userID)
 	if (user.rows[0].id !== userDataResult.rows[0].id || userDataResult.rows[0].role !== "admin") {
 		return res.status(400).json({ error: "User not authorized" })
 	}

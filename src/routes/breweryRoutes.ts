@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 const jwt = require('jsonwebtoken')
 import pool from "../utils/db";
+import { tokenUser, getTokenFrom, decodeToken } from "../utils/userlib";
 
 const router = Router();
 
@@ -8,7 +9,7 @@ interface Brewery {
 	id: number;
 	name: string;
 	location: string;
-	dateoffounding: string;
+	date_of_founding: string;
 	date_created: Date;
 	date_updated: Date;
 	author: string;
@@ -20,24 +21,6 @@ async function brewerylookup(breweryID: Number) {
 
 async function breweryUser(breweryID: Number) {
 	return await pool.query("SELECT author FROM breweries WHERE id = $1", [breweryID]);
-  }
-
-async function tokenUser(decodedToken: any) {
-	return await pool.query(
-   "SELECT id FROM users WHERE id = $1",[decodedToken.id]
-	);
-  }
-
-const getTokenFrom = (req: Request) => {
-	const authorization = req.get('Authorization')
-	if (authorization && authorization.startsWith('Bearer ')) {
-	  return authorization.replace('Bearer ', '')
-	}
-	return null
-  }
-
-function decodeToken(req: Request) {
-	return jwt.verify(getTokenFrom(req), process.env.SECRET);
   }
 
 router.get("/", async (req: Request, res: Response) => {
@@ -64,7 +47,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 })	
 
 router.post("/", async (req: Request, res: Response) => {
-	const { name, brewery, description, ibu, abv, color } = req.body;
+	const { name, location, date_of_founding } = req.body;
 	const decodedToken = jwt.verify(getTokenFrom(req), process.env.SECRET)
 	if (!decodedToken.id) {
 	 return res.status(401).json({ error: 'token invalid'})
@@ -80,8 +63,8 @@ router.post("/", async (req: Request, res: Response) => {
  
 	try {
 	  const result = await pool.query(
-		"INSERT INTO breweries (name, brewery, description, ibu, abv, color, author) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
-		[name, brewery, description, ibu, abv, color, user.rows[0].id]
+		"INSERT INTO breweries (name, location, date_of_founding, author) VALUES ($1, $2, $3, $4) RETURNING *",
+		[name, location, date_of_founding, user.rows[0].id]
 	  );
 	  const createdBrewery: Brewery = result.rows[0];
 	  res.status(201).json(createdBrewery);
