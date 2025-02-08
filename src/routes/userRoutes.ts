@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import pool from "../utils/db";
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
-import { tokenUser, getTokenFrom, decodeToken } from "../utils/userlib";
+import { tokenUser, decodeToken } from "../utils/userlib";
 
 const router = Router();
 
