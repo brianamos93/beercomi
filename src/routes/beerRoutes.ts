@@ -1,12 +1,12 @@
 import { Router, Request, Response } from "express";
 const jwt = require('jsonwebtoken')
 import pool from "../utils/db";
-import { tokenUser, getTokenFrom, decodeToken } from "../utils/userlib"
+import { tokenUser, decodeToken } from "../utils/userlib"
 
 const router = Router();
 
 interface Beer {
-	id: number;
+	id: string;
 	name: string;
 	brewery: string;
 	description: string;
@@ -17,11 +17,11 @@ interface Beer {
 
 }
 
-async function beerlookup(beerID: Number) {
+async function beerlookup(beerID: String) {
 	return await pool.query("SELECT id FROM beers WHERE id = $1", [beerID]);
   }
 
-async function beerUser(beerID: Number) {
+async function beerUser(beerID: String) {
 	return await pool.query("SELECT userid FROM beers WHERE id = $1", [beerID]);
   }
 
@@ -37,7 +37,7 @@ router.get("/", async (req: Request, res: Response) => {
 	});
 
 router.get("/:id", async (req: Request, res: Response) => {
-	const beerId = parseInt(req.params.id, 10);
+	const beerId = req.params.id
 	try {
 		const result = await pool.query("SELECT * FROM beers WHERE id = $1", [beerId])
 		const beers: Beer[] = result.rows;
@@ -50,7 +50,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 
 router.post("/", async (req: Request, res: Response) => {
 	const { name, brewery, description, ibu, abv, color } = req.body;
-	const decodedToken = jwt.verify(getTokenFrom(req), process.env.SECRET)
+	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
 	 return res.status(401).json({ error: 'token invalid'})
 	}
@@ -77,7 +77,7 @@ router.post("/", async (req: Request, res: Response) => {
   });
 
 router.delete("/:id", async (req: Request, res: Response) => {
-	const beerID = parseInt(req.params.id, 10);
+	const beerID = req.params.id
 	const beercheck = await beerlookup(beerID)
 	if (beercheck.rowCount == 0) {
 	 return res.status(401).json({ error: 'beer does not exist'})
@@ -85,10 +85,6 @@ router.delete("/:id", async (req: Request, res: Response) => {
 	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
 	 return res.status(401).json({ error: 'token invalid'})
-	}
-	// TypeScript type-based input validation
-	if (isNaN(beerID)) {
-	  return res.status(400).json({ error: "Invalid beer ID" });
 	}
  
 	const user = await tokenUser(decodedToken)
@@ -105,7 +101,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
   }); 
 
   router.put("/:id", async (req: Request, res: Response) => {
-	const beerID = parseInt(req.params.id, 10);
+	const beerID = req.params.id
 	const { name, brewery, description, ibu, abv, color } = req.body;
 	const beercheck = await beerlookup(beerID)
  
@@ -116,11 +112,6 @@ router.delete("/:id", async (req: Request, res: Response) => {
 	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
 	 return res.status(401).json({ error: 'token invalid'})
-	}
- 
-	// TypeScript type-based input validation
-	if (isNaN(beerID)) {
-	  return res.status(400).json({ error: "Invalid beer ID" });
 	}
   
 	const user = await tokenUser(decodedToken)
