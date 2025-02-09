@@ -46,4 +46,8 @@ CREATE TABLE user_favorite_beers (
     PRIMARY KEY (user_id, beer_id)
 );
 
+INSERT INTO users(email, password, role) VALUES ('test@test.com', 'password', 'admin')
 
+ALTER TABLE users ALTER COLUMN role SET DEFAULT 'basic';
+
+ALTER TABLE breweries ADD COLUMN verification BOOLEAN DEFAULT FALSE;
