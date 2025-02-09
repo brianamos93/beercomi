@@ -12,7 +12,8 @@ CREATE TABLE breweries (
     date_of_founding TEXT NOT NULL,
     date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    author UUID REFERENCES users(id) ON DELETE SET NULL
+    author UUID REFERENCES users(id) ON DELETE SET NULL,
+    owner UUID REFERENCES users(id) ON DELETE SET NULL DEFAULT NULL
 );
 
 CREATE OR REPLACE FUNCTION update_timestamp()
@@ -25,6 +26,11 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER breweries_update_timestamp
 BEFORE UPDATE ON breweries
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
+
+CREATE TRIGGER beers_update_timestamp
+BEFORE UPDATE ON beers
 FOR EACH ROW
 EXECUTE FUNCTION update_timestamp();
 
@@ -49,5 +55,3 @@ CREATE TABLE user_favorite_beers (
 INSERT INTO users(email, password, role) VALUES ('test@test.com', 'password', 'admin')
 
 ALTER TABLE users ALTER COLUMN role SET DEFAULT 'basic';
-
-ALTER TABLE breweries ADD COLUMN verification BOOLEAN DEFAULT FALSE;

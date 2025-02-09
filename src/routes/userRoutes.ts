@@ -13,7 +13,7 @@ interface User {
 	role: string,
 }
 
-async function userIdGet(userId: number) {
+async function userIdGet(userId: string) {
 	return await pool.query("SELECT id, role FROM users WHERE id = $1", [userId])
 }
 
@@ -112,11 +112,7 @@ router.post("/signup", async ( req: Request, res: Response ) => {
 })
 
 router.get("/user/:id", async (req: Request, res: Response ) => {
-	const userID = parseInt(req.params.id, 10);
-	// TypeScript type-based input validation
-	if (isNaN(userID)) {
-		return res.status(400).json({ error: "Invalid user ID" });
-	  }
+	const userID = req.params.id
 	  try {
 		const result = await pool.query("SELECT beers.name FROM users JOIN beers ON users.id = beers.author WHERE users.id = $1 ", [userID]);
 		const user: User[] = result.rows;
@@ -128,12 +124,7 @@ router.get("/user/:id", async (req: Request, res: Response ) => {
 })
 
 router.delete("/user/:id", async (req: Request, res: Response) => {
-	const userID = parseInt(req.params.id, 10);
- 
-	// TypeScript type-based input validation
-	if (isNaN(userID)) {
-	  return res.status(400).json({ error: "Invalid user ID" });
-	}
+	const userID = req.params.id
 	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
 	 return res.status(401).json({ error: 'token invalid'})
@@ -153,7 +144,7 @@ router.delete("/user/:id", async (req: Request, res: Response) => {
   });
 
 router.put("/user/:id", async (req: Request, res: Response) => {
-	const userID = parseInt(req.params.id, 10);
+	const userID = req.params.id
 	const { password } = req.body;
 
 	const saltRounds = 10
@@ -172,7 +163,7 @@ router.put("/user/:id", async (req: Request, res: Response) => {
 });
 
 router.put("/user/:id/role", async (req: Request, res: Response) => {
-	const userID = parseInt(req.params.id, 10);
+	const userID = req.params.id
 	const { role } = req.body;
 
 	try {
@@ -186,5 +177,60 @@ router.put("/user/:id/role", async (req: Request, res: Response) => {
 	res.sendStatus(500).json({ error: "Error updating todo" });
 	}
 });
+
+router.put("/verified/:id", async (req: Request, res: Response) => {
+	const userID = req.params.id
+	const usercheck = await userIdGet(userID)
+ 
+	if (usercheck.rowCount == 0) {
+	 return res.status(401).json({ error: 'user does not exist'})
+	}
+ 
+	const decodedToken = decodeToken(req)
+	if (!decodedToken.id) {
+	 return res.status(401).json({ error: 'token invalid'})
+	}
+  
+	const user = await tokenUser(decodedToken)
+ 
+	if (user.rows[0].role !== "admin") {
+	 return res.status(400).json({ error: "User not authorized" })
+	}
+ 
+	try {
+	  await pool.query("UPDATE users SET verification = TRUE WHERE id = $1", [userID]);
+	  res.sendStatus(200);
+	} catch (error) {
+	  res.sendStatus(500).json({ error: "Error updating users" });
+	}
+ });
+
+
+ router.put("/unverified/:id", async (req: Request, res: Response) => {
+	const userID = req.params.id
+	const usercheck = await userIdGet(userID)
+ 
+	if (usercheck.rowCount == 0) {
+	 return res.status(401).json({ error: 'user does not exist'})
+	}
+ 
+	const decodedToken = decodeToken(req)
+	if (!decodedToken.id) {
+	 return res.status(401).json({ error: 'token invalid'})
+	}
+  
+	const user = await tokenUser(decodedToken)
+ 
+	if (user.rows[0].role !== "admin") {
+	 return res.status(400).json({ error: "User not authorized" })
+	}
+ 
+	try {
+	  await pool.query("UPDATE users SET verification = FALSE WHERE id = $1", [userID]);
+	  res.sendStatus(200);
+	} catch (error) {
+	  res.sendStatus(500).json({ error: "Error updating user" });
+	}
+ });
 
 export default router

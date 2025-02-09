@@ -1,5 +1,4 @@
 import { Router, Request, Response } from "express";
-const jwt = require('jsonwebtoken')
 import pool from "../utils/db";
 import { tokenUser, decodeToken } from "../utils/userlib";
 
@@ -13,7 +12,7 @@ interface Brewery {
 	date_created: Date;
 	date_updated: Date;
 	author: string;
-	varification: boolean;
+	owner: string;
 }
 
 async function brewerylookup(breweryID: String) {
@@ -119,7 +118,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 	const user = await tokenUser(decodedToken)
 	const breweryuser = await breweryUser(breweryID)
  
-	if (user.rows[0].id !== breweryuser.rows[0].author) {
+	if (user.rows[0].id !== breweryuser.rows[0].author || user.rows[0].role !== "admin") {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
  
@@ -129,7 +128,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 	}
  
 	try {
-	  await pool.query("UPDATE breweries SET name, brewery, description, ibu, abv, color = $1, $2. $3, $4, $5, $6 WHERE id = $2", [
+	  await pool.query("UPDATE breweries SET name, brewery, description, ibu, abv, color = $1, $2. $3, $4, $5, $6 WHERE id = $7", [
 		name, 
 		brewery, 
 		description, 
@@ -146,58 +145,4 @@ router.delete("/:id", async (req: Request, res: Response) => {
  
  });
 
- router.put("/verified/:id", async (req: Request, res: Response) => {
-	const breweryID = req.params.id
-	const brewerycheck = await brewerylookup(breweryID)
- 
-	if (brewerycheck.rowCount == 0) {
-	 return res.status(401).json({ error: 'brewery does not exist'})
-	}
- 
-	const decodedToken = decodeToken(req)
-	if (!decodedToken.id) {
-	 return res.status(401).json({ error: 'token invalid'})
-	}
-  
-	const user = await tokenUser(decodedToken)
- 
-	if (user.rows[0].role !== "admin") {
-	 return res.status(400).json({ error: "User not authorized" })
-	}
- 
-	try {
-	  await pool.query("UPDATE breweries SET verification = TRUE WHERE id = $1", [breweryID]);
-	  res.sendStatus(200);
-	} catch (error) {
-	  res.sendStatus(500).json({ error: "Error updating brewery" });
-	}
- });
-
-
- router.put("/unverified/:id", async (req: Request, res: Response) => {
-	const breweryID = req.params.id
-	const brewerycheck = await brewerylookup(breweryID)
- 
-	if (brewerycheck.rowCount == 0) {
-	 return res.status(401).json({ error: 'brewery does not exist'})
-	}
- 
-	const decodedToken = decodeToken(req)
-	if (!decodedToken.id) {
-	 return res.status(401).json({ error: 'token invalid'})
-	}
-  
-	const user = await tokenUser(decodedToken)
- 
-	if (user.rows[0].role !== "admin") {
-	 return res.status(400).json({ error: "User not authorized" })
-	}
- 
-	try {
-	  await pool.query("UPDATE breweries SET verification = FALSE WHERE id = $1", [breweryID]);
-	  res.sendStatus(200);
-	} catch (error) {
-	  res.sendStatus(500).json({ error: "Error updating brewery" });
-	}
- });
 export default router;
