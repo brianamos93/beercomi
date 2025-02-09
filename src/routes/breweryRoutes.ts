@@ -13,15 +13,17 @@ interface Brewery {
 	date_created: Date;
 	date_updated: Date;
 	author: string;
+	varification: boolean;
 }
 
-async function brewerylookup(breweryID: Number) {
+async function brewerylookup(breweryID: String) {
 	return await pool.query("SELECT id FROM breweries WHERE id = $1", [breweryID]);
   }
 
-async function breweryUser(breweryID: Number) {
+async function breweryUser(breweryID: String) {
 	return await pool.query("SELECT author FROM breweries WHERE id = $1", [breweryID]);
   }
+
 
 router.get("/", async (req: Request, res: Response) => {
 	try {
@@ -29,13 +31,13 @@ router.get("/", async (req: Request, res: Response) => {
 		const breweries: Brewery[] = result.rows;
 		res.json(breweries);
 	  } catch (error) {
-		console.error("Error fetching todos", error);
-		res.status(500).json({ error: "Error fetching todos" });
+		console.error("Error fetching breweries", error);
+		res.status(500).json({ error: "Error fetching breweries" });
 	  }
 	});
 
 router.get("/:id", async (req: Request, res: Response) => {
-	const breweryId = parseInt(req.params.id, 10);
+	const breweryId = req.params.id
 	try {
 		const result = await pool.query("SELECT * FROM breweries WHERE id = $1", [breweryId])
 		const breweries: Brewery[] = result.rows;
@@ -76,18 +78,14 @@ router.post("/", async (req: Request, res: Response) => {
   });
 
 router.delete("/:id", async (req: Request, res: Response) => {
-	const breweryID = parseInt(req.params.id, 10);
-	const taskcheck = await brewerylookup(breweryID)
-	if (taskcheck.rowCount == 0) {
+	const breweryID = req.params.id
+	const brewerycheck = await brewerylookup(breweryID)
+	if (brewerycheck.rowCount == 0) {
 	 return res.status(401).json({ error: 'brewery does not exist'})
 	}
 	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
 	 return res.status(401).json({ error: 'token invalid'})
-	}
-	// TypeScript type-based input validation
-	if (isNaN(breweryID)) {
-	  return res.status(400).json({ error: "Invalid brewery ID" });
 	}
  
 	const user = await tokenUser(decodedToken)
@@ -99,13 +97,13 @@ router.delete("/:id", async (req: Request, res: Response) => {
 	  await pool.query("DELETE FROM breweries WHERE id = $1", [breweryID]);
 	  res.sendStatus(200);
 	} catch (error) {
-	  console.error("Error deleting todo", error);
+	  console.error("Error deleting brewery", error);
 	  res.status(500).json({ error: "Error deleting brewery" });
 	}
   }); 
 
   router.put("/:id", async (req: Request, res: Response) => {
-	const breweryID = parseInt(req.params.id, 10);
+	const breweryID = req.params.id
 	const { name, brewery, description, ibu, abv, color } = req.body;
 	const brewerycheck = await brewerylookup(breweryID)
  
@@ -116,11 +114,6 @@ router.delete("/:id", async (req: Request, res: Response) => {
 	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
 	 return res.status(401).json({ error: 'token invalid'})
-	}
- 
-	// TypeScript type-based input validation
-	if (isNaN(breweryID)) {
-	  return res.status(400).json({ error: "Invalid brewery ID" });
 	}
   
 	const user = await tokenUser(decodedToken)
@@ -136,7 +129,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 	}
  
 	try {
-	  await pool.query("UPDATE todos SET name, brewery, description, ibu, abv, color = $1, $2. $3, $4, $5, $6 ,date_updated = CURRENT_TIMESTAMP WHERE id = $2", [
+	  await pool.query("UPDATE breweries SET name, brewery, description, ibu, abv, color = $1, $2. $3, $4, $5, $6 WHERE id = $2", [
 		name, 
 		brewery, 
 		description, 
@@ -153,4 +146,58 @@ router.delete("/:id", async (req: Request, res: Response) => {
  
  });
 
+ router.put("/verified/:id", async (req: Request, res: Response) => {
+	const breweryID = req.params.id
+	const brewerycheck = await brewerylookup(breweryID)
+ 
+	if (brewerycheck.rowCount == 0) {
+	 return res.status(401).json({ error: 'brewery does not exist'})
+	}
+ 
+	const decodedToken = decodeToken(req)
+	if (!decodedToken.id) {
+	 return res.status(401).json({ error: 'token invalid'})
+	}
+  
+	const user = await tokenUser(decodedToken)
+ 
+	if (user.rows[0].role !== "admin") {
+	 return res.status(400).json({ error: "User not authorized" })
+	}
+ 
+	try {
+	  await pool.query("UPDATE breweries SET verification = TRUE WHERE id = $1", [breweryID]);
+	  res.sendStatus(200);
+	} catch (error) {
+	  res.sendStatus(500).json({ error: "Error updating brewery" });
+	}
+ });
+
+
+ router.put("/unverified/:id", async (req: Request, res: Response) => {
+	const breweryID = req.params.id
+	const brewerycheck = await brewerylookup(breweryID)
+ 
+	if (brewerycheck.rowCount == 0) {
+	 return res.status(401).json({ error: 'brewery does not exist'})
+	}
+ 
+	const decodedToken = decodeToken(req)
+	if (!decodedToken.id) {
+	 return res.status(401).json({ error: 'token invalid'})
+	}
+  
+	const user = await tokenUser(decodedToken)
+ 
+	if (user.rows[0].role !== "admin") {
+	 return res.status(400).json({ error: "User not authorized" })
+	}
+ 
+	try {
+	  await pool.query("UPDATE breweries SET verification = FALSE WHERE id = $1", [breweryID]);
+	  res.sendStatus(200);
+	} catch (error) {
+	  res.sendStatus(500).json({ error: "Error updating brewery" });
+	}
+ });
 export default router;
