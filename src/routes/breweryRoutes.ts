@@ -89,7 +89,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
  
 	const user = await tokenUser(decodedToken)
 	const breweryUserResult = await breweryUser(breweryID)
-	if (user.rows[0].id !== breweryUserResult.rows[0].author) {
+	if (user.rows[0].id !== breweryUserResult.rows[0].author || user.rows[0].role !== "admin") {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
 	try {
@@ -128,7 +128,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 	}
  
 	try {
-	  await pool.query("UPDATE breweries SET name, brewery, description, ibu, abv, color = $1, $2. $3, $4, $5, $6 WHERE id = $7", [
+	  await pool.query("UPDATE breweries SET name = $1, brewery = $2, description = $3, ibu = $4, abv = $5, color = $6 WHERE id = $7", [
 		name, 
 		brewery, 
 		description, 
