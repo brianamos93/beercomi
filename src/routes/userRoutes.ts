@@ -8,6 +8,7 @@ const router = Router();
 
 interface User {
 	id: number,
+	username: string,
 	email: string,
 	password: string,
 	role: string,
@@ -57,7 +58,7 @@ router.post("/login", async (req: Request, res: Response) => {
 
 router.get("/users", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT users.id, users.email, users.role FROM users")
+		const result = await pool.query("SELECT users.id, users.username, users.role FROM users")
 		const users: User[] = result.rows
 		res.json(users)
 	} catch (error) {
@@ -68,7 +69,7 @@ router.get("/users", async (req: Request, res: Response) => {
 
 router.get("/users/beers", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT users.id, users.email, users.role, beers.name, beers.description FROM users INNER JOIN beers ON users.id = beers.author")
+		const result = await pool.query("SELECT users.id, users.username, beers.name, beers.description FROM users INNER JOIN beers ON users.id = beers.author")
 		const users: User[] = result.rows
 		res.json(users)
 	} catch (error) {
@@ -79,7 +80,7 @@ router.get("/users/beers", async (req: Request, res: Response) => {
 
 router.get("/users/breweries", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT users.id, users.email, users.role, breweries.name, breweries.description FROM users INNER JOIN breweries ON users.id = brewery.author")
+		const result = await pool.query("SELECT users.id, users.username, breweries.name, breweries.description FROM users INNER JOIN breweries ON users.id = brewery.author")
 		const users: User[] = result.rows
 		res.json(users)
 	} catch (error) {
@@ -89,19 +90,23 @@ router.get("/users/breweries", async (req: Request, res: Response) => {
 })
 
 router.post("/signup", async ( req: Request, res: Response ) => {
-	const { email, password } = req.body
+	const { username, email, password } = req.body
 
 	const saltRounds = 10
 	const passwordHash = await bcrypt.hash(password, saltRounds)
 
 	try {
 	const emailCheck = await pool.query("SELECT id FROM users WHERE email = $1", [email])
+	const usernameCheck = await pool.query("SELECT id FROM users WHERE username = $1", [username])
 
 	if (emailCheck.rowCount != 0) {
-		return res.status(500).json({ error: "Error" })
+		return res.status(500).json({ error: "Email invalid or in use" })
+	}
+	if (usernameCheck.rowCount != 0) {
+		return res.status(500).json({ error: "Username not valid or in use"})
 	}
 		const result = await pool.query(
-			"INSERT INTO users(email, password) VALUES($1, $2) RETURNING *", [email, passwordHash]
+			"INSERT INTO users(email, password, username) VALUES($1, $2, $3) RETURNING *", [email, passwordHash, username]
 		)
 		const createdUser: User = result.rows[0]
 		res.status(201).json(createdUser)
