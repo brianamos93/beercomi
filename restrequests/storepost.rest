@@ -1,0 +1,9 @@
+POST http://localhost:3005/stores/ HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNiOGU2MzhlLTU2NmMtNGU5Yy04Y2ZmLWNlYWJjMGEwY2YyNCIsImlhdCI6MTczOTM2NjU0MCwiZXhwIjoxNzM5MzcwMTQwfQ.3jQSoNMcjvTVkuhGF8qGL7zE3BYFVMpUHt1Pr7pUGlM
+
+{
+	"name": "New Store",
+	"location": "America",
+	"date_of_founding": "2006"
+}
