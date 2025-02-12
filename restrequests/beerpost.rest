@@ -1,10 +1,13 @@
 POST http://localhost:3005/beers/ HTTP/1.1
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNiOGU2MzhlLTU2NmMtNGU5Yy04Y2ZmLWNlYWJjMGEwY2YyNCIsImlhdCI6MTczODk5MjA5MiwiZXhwIjoxNzM4OTk1NjkyfQ.KXlpZ0nnAyuq-zORr0009bixj5FzsJlNWP8td8Ycn1M
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNiOGU2MzhlLTU2NmMtNGU5Yy04Y2ZmLWNlYWJjMGEwY2YyNCIsImlhdCI6MTczOTM2NjY5NSwiZXhwIjoxNzM5MzcwMjk1fQ.6JYBzQ51JqqOdnpbV6BtiptE7ErWL0dSQoYLjG1PwlY
+
 {
-	"name": "The Beer",
-	"description": "A very standard beer. It can be enjoyed by anyone.",
-	"ibu": "31",
-	"abv": "5",
+	"name": "New Beer",
+	"brewery": null,
+	"description": "A cool beer",
+	"style": "IPA",
+	"ibu": "10",
+	"abv": "6",
 	"color": "golden"
 }
