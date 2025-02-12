@@ -65,7 +65,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 })	
 
 router.post("/", async (req: Request, res: Response) => {
-	const { name, brewery, description, ibu, abv, color } = req.body;
+	const { name, brewery, description, style, ibu, abv, color } = req.body;
 	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
 	 return res.status(401).json({ error: 'token invalid'})
@@ -81,8 +81,8 @@ router.post("/", async (req: Request, res: Response) => {
  
 	try {
 	  const result = await pool.query(
-		"INSERT INTO beers (name, brewery_id, description, style, ibu, abv, color, author) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
-		[name, brewery, description, ibu, abv, color, user.rows[0].id]
+		"INSERT INTO beers (name, brewery_id, description, style, ibu, abv, color, author) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+		[name, brewery, description, style, ibu, abv, color, user.rows[0].id]
 	  );
 	  const createdBeer: Beer = result.rows[0];
 	  res.status(201).json(createdBeer);
