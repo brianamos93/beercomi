@@ -42,7 +42,9 @@ CREATE TABLE beers (
     ibu INT,
     abv NUMERIC,
     color TEXT,
-    author UUID REFERENCES users(id) ON DELETE SET NULL
+    author UUID REFERENCES users(id) ON DELETE SET NULL,
+    date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    date_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Linking table for many-to-many relationships if needed
