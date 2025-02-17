@@ -13,7 +13,9 @@ interface Beer {
 	ibu: number;
 	abv: number;
 	color: string;
-	author: string
+	author: string;
+	date_created: Date;
+	date_updated: Date
  
 }
 
@@ -43,7 +45,7 @@ async function beerUser(beerID: String) {
 
 router.get("/", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT id, name, brewery, description, style, ibu, abv, color, author FROM beers");
+		const result = await pool.query("SELECT id, name, brewery_id, description, style, ibu, abv, color, author FROM beers");
 		const beers: Beer[] = result.rows;
 		res.json(beers);
 	  } catch (error) {
@@ -55,8 +57,8 @@ router.get("/", async (req: Request, res: Response) => {
 router.get("/:id", async (req: Request, res: Response) => {
 	const beerId = req.params.id
 	try {
-		const result = await pool.query("SELECT beers.id, beers.name, beers.brewery, beers.description, beers.style, beers.ibu, beers.abv, beers.color, reviews.rating, reviews.review, users.username FROM beers LEFT JOIN beer_reviews ON beers.id = beer_reviews.beerid LEFT JOIN users ON beer_reviews.authorid = users.id WHERE id = $1", [beerId])
-		const beers: Beer[] = result.rows;
+		const result = await pool.query("SELECT beers.id, beers.name, beers.brewery_id, beers.description, beers.style, beers.ibu, beers.abv, beers.color, beers.date_updated, beers.date_created, beer_reviews.rating, beer_reviews.review FROM beers LEFT JOIN beer_reviews ON beers.id = beer_reviews.beer LEFT JOIN users ON beer_reviews.author = users.id WHERE beers.id = $1", [beerId])
+		const beers: Beer[] = result.rows[0];
 		res.json(beers)
 	} catch (error) {
 		console.error("Error fetching beers", error)

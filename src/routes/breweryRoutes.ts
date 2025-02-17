@@ -39,7 +39,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 	const breweryId = req.params.id
 	try {
 		const result = await pool.query("SELECT * FROM breweries WHERE id = $1", [breweryId])
-		const breweries: Brewery[] = result.rows;
+		const breweries: Brewery[] = result.rows[0];
 		res.json(breweries)
 	} catch (error) {
 		console.error("Error fetching breweries", error)

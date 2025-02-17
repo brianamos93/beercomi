@@ -120,7 +120,7 @@ router.get("/user/:id", async (req: Request, res: Response ) => {
 	const userID = req.params.id
 	  try {
 		const result = await pool.query("SELECT beers.name FROM users JOIN beers ON users.id = beers.author WHERE users.id = $1 ", [userID]);
-		const user: User[] = result.rows;
+		const user: User[] = result.rows[0];
 		res.json(user);
 	  } catch (error) {
 		console.error("Error fetching user", error);
