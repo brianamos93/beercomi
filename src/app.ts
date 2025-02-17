@@ -10,6 +10,7 @@ import userRoutes from "./routes/userRoutes";
 import breweryRoutes from "./routes/breweryRoutes"
 import searchRoutes from "./routes/searchRoute"
 import storesRoutes from "./routes/storeRoutes"
+import recentRoutes from "./routes/recentactivtyRoutes"
 const middleware = require('./utils/middleware');
 
 app.use(cors({
@@ -25,6 +26,7 @@ app.use("/beers", beerRoutes);
 app.use("/breweries", breweryRoutes)
 app.use("/search", searchRoutes)
 app.use("/stores", storesRoutes)
+app.use("/recent", recentRoutes)
 app.use("/", userRoutes);
 
 app.use(middleware.unknownEndpoint);
