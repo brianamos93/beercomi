@@ -54,6 +54,18 @@ router.get("/", async (req: Request, res: Response) => {
 	  }
 	});
 
+
+router.get("/list", async (req: Request, res: Response) => {
+	try {
+		const result = await pool.query("SELECT id FROM beers");
+		const beers: Beer[] = result.rows;
+		res.json(beers);
+		} catch (error) {
+		console.error("Error fetching beers", error);
+		res.status(500).json({ error: "Error fetching beers" });
+		}
+	});
+
 router.get("/:id", async (req: Request, res: Response) => {
 	const beerId = req.params.id
 	try {
