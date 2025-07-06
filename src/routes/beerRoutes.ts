@@ -32,7 +32,7 @@ async function beerlookup(beerID: String) {
   }
 
 async function beerUser(beerID: String) {
-	return await pool.query("SELECT userid FROM beers WHERE id = $1", [beerID]);
+	return await pool.query("SELECT author FROM beers WHERE id = $1", [beerID]);
   }
 
  async function reviewLookup(reviewID:String) {
@@ -45,9 +45,15 @@ async function beerUser(beerID: String) {
 
 router.get("/", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT id, name, brewery_id, description, style, ibu, abv, color, author FROM beers");
+		const result = await pool.query("SELECT beers.id, beers.name, beers.brewery_id, breweries.name AS brewery_name, beers.description, beers.style, beers.ibu, beers.abv, beers.color, beers.date_updated, beers.date_created FROM beers LEFT JOIN breweries ON beers.brewery_id = breweries.id");
 		const beers: Beer[] = result.rows;
-		res.json(beers);
+		const modifiedBeers = beers.map((beer) => {
+			return {
+				...beer,
+				abv: beer.abv / 10
+			}
+		})
+		res.json(modifiedBeers);
 	  } catch (error) {
 		console.error("Error fetching beers", error);
 		res.status(500).json({ error: "Error fetching beers" });
@@ -69,9 +75,10 @@ router.get("/list", async (req: Request, res: Response) => {
 router.get("/:id", async (req: Request, res: Response) => {
 	const beerId = req.params.id
 	try {
-		const result = await pool.query("SELECT beers.id, beers.name, beers.brewery_id, beers.description, beers.style, beers.ibu, beers.abv, beers.color, beers.date_updated, beers.date_created, beer_reviews.rating, beer_reviews.review FROM beers LEFT JOIN beer_reviews ON beers.id = beer_reviews.beer LEFT JOIN users ON beer_reviews.author = users.id WHERE beers.id = $1", [beerId])
-		const beers: Beer[] = result.rows[0];
-		res.json(beers)
+		const result = await pool.query("SELECT beers.id, beers.name, beers.brewery_id, breweries.name AS brewery_name, beers.description, beers.style, beers.ibu, beers.abv, beers.color, beers.author, beers.date_updated, beers.date_created, beer_reviews.rating, beer_reviews.review FROM beers LEFT JOIN breweries ON beers.brewery_id = breweries.id LEFT JOIN beer_reviews ON beers.id = beer_reviews.beer LEFT JOIN users ON beer_reviews.author = users.id WHERE beers.id = $1", [beerId])
+		const beer: Beer = result.rows[0];
+		beer.abv = beer.abv / 10
+		res.json(beer)
 	} catch (error) {
 		console.error("Error fetching beers", error)
 		res.status(500).json({ error: "Error fetching beers" })
@@ -79,7 +86,8 @@ router.get("/:id", async (req: Request, res: Response) => {
 })	
 
 router.post("/", async (req: Request, res: Response) => {
-	const { name, brewery, description, style, ibu, abv, color } = req.body;
+	const { name, brewery_id, description, style, ibu, abv, color } = req.body;
+	console.log(req)
 	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
 	 return res.status(401).json({ error: 'token invalid'})
@@ -94,9 +102,11 @@ router.post("/", async (req: Request, res: Response) => {
 	}
  
 	try {
+		const formatedIbu = Number(ibu)
+		const formatedAbv = Number(abv*10)
 	  const result = await pool.query(
 		"INSERT INTO beers (name, brewery_id, description, style, ibu, abv, color, author) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
-		[name, brewery, description, style, ibu, abv, color, user.rows[0].id]
+		[name, brewery_id, description, style, formatedIbu, formatedAbv, color, user.rows[0].id]
 	  );
 	  const createdBeer: Beer = result.rows[0];
 	  res.status(201).json(createdBeer);
@@ -132,7 +142,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 
 router.put("/:id", async (req: Request, res: Response) => {
 	const beerID = req.params.id
-	const { name, brewery, description, style, ibu, abv, color } = req.body;
+	const { name, brewery_id, description, style, ibu, abv, color } = req.body;
 	const beercheck = await beerlookup(beerID)
  
 	if (beercheck.rowCount == 0) {
@@ -147,29 +157,26 @@ router.put("/:id", async (req: Request, res: Response) => {
 	const user = await tokenUser(decodedToken)
 	const beeruser = await beerUser(beerID)
  
-	if (user.rows[0].id !== beeruser.rows[0].userid) {
+	if (user.rows[0].id !== beeruser.rows[0].author) {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
  
-	// TypeScript type-based input validation
-	if (typeof name !== "string" || name.trim() === "") {
-	  return res.status(400).json({ error: "Invalid beer data" });
-	}
- 
+	const formatedIbu = Number(ibu)
+	const formatedAbv = Number(abv*10)
 	try {
-	  await pool.query("UPDATE beers SET name = $1, brewery = $2, description = $3, style = $4, ibu = $5, abv = $6, color = $7 WHERE id = $8", [
+	  await pool.query("UPDATE beers SET name = $1, brewery_id = $2, description = $3, style = $4, ibu = $5, abv = $6, color = $7 WHERE id = $8", [
 		name, 
-		brewery, 
+		brewery_id, 
 		description,
 		style, 
-		ibu, 
-		abv, 
+		formatedIbu, 
+		formatedAbv, 
 		color,
 		beerID,
 	  ]);
-	  res.sendStatus(200);
+	  res.status(200).json({ message: "Beer updated successfully" });
 	} catch (error) {
-	  res.sendStatus(500).json({ error: "Error updating beer" });
+	  res.status(500).json({ error: "Error updating beer" });
 	}
  });
 
