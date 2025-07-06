@@ -20,7 +20,7 @@ async function brewerylookup(breweryID: String) {
   }
 
 async function breweryUser(breweryID: String) {
-	return await pool.query("SELECT author FROM breweries WHERE id = $1", [breweryID]);
+	return await pool.query("SELECT authorid FROM breweries WHERE id = $1", [breweryID]);
   }
 
 
@@ -35,10 +35,21 @@ router.get("/", async (req: Request, res: Response) => {
 	  }
 	});
 
+router.get("/list", async (req: Request, res: Response) => {
+	try {
+		const result = await pool.query("SELECT id FROM breweries");
+		const breweries: Brewery[] = result.rows;
+		res.json(breweries);
+		} catch (error) {
+		console.error("Error fetching breweries", error);
+		res.status(500).json({ error: "Error fetching breweries" });
+		}
+	});	
+
 router.get("/:id", async (req: Request, res: Response) => {
 	const breweryId = req.params.id
 	try {
-		const result = await pool.query("SELECT * FROM breweries WHERE id = $1", [breweryId])
+		const result = await pool.query("SELECT breweries.id, breweries.name, breweries.location, breweries.date_of_founding, breweries.date_created, breweries.date_updated, users.display_name, breweries.authorid, beers.name AS beer_name, beers.style, beers.ibu, beers.abv FROM breweries LEFT JOIN users ON breweries.authorid = users.id LEFT JOIN beers ON breweries.id = beers.brewery_id WHERE breweries.id = $1", [breweryId])
 		const breweries: Brewery[] = result.rows[0];
 		res.json(breweries)
 	} catch (error) {
@@ -65,7 +76,7 @@ router.post("/", async (req: Request, res: Response) => {
  
 	try {
 	  const result = await pool.query(
-		"INSERT INTO breweries (name, location, date_of_founding, author) VALUES ($1, $2, $3, $4) RETURNING *",
+		"INSERT INTO breweries (name, location, date_of_founding, authorid) VALUES ($1, $2, $3, $4) RETURNING *",
 		[name, location, date_of_founding, user.rows[0].id]
 	  );
 	  const createdBrewery: Brewery = result.rows[0];
@@ -89,7 +100,8 @@ router.delete("/:id", async (req: Request, res: Response) => {
  
 	const user = await tokenUser(decodedToken)
 	const breweryUserResult = await breweryUser(breweryID)
-	if (user.rows[0].id !== breweryUserResult.rows[0].author || user.rows[0].role !== "admin") {
+
+	if (user.rows[0].id !== breweryUserResult.rows[0].authorid) {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
 	try {
@@ -103,7 +115,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 
   router.put("/:id", async (req: Request, res: Response) => {
 	const breweryID = req.params.id
-	const { name, brewery, description, ibu, abv, color } = req.body;
+	const { name, location, date_of_founding } = req.body;
 	const brewerycheck = await brewerylookup(breweryID)
  
 	if (brewerycheck.rowCount == 0) {
@@ -118,28 +130,21 @@ router.delete("/:id", async (req: Request, res: Response) => {
 	const user = await tokenUser(decodedToken)
 	const breweryuser = await breweryUser(breweryID)
  
-	if (user.rows[0].id !== breweryuser.rows[0].author || user.rows[0].role !== "admin") {
+	if (user.rows[0].id !== breweryuser.rows[0].authorid) {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
- 
-	// TypeScript type-based input validation
-	if (typeof name !== "string" || name.trim() === "") {
-	  return res.status(400).json({ error: "Invalid brewery data" });
-	}
+	console.log()
  
 	try {
-	  await pool.query("UPDATE breweries SET name = $1, brewery = $2, description = $3, ibu = $4, abv = $5, color = $6 WHERE id = $7", [
-		name, 
-		brewery, 
-		description, 
-		ibu, 
-		abv, 
-		color,
+	  await pool.query("UPDATE breweries SET name = $1, location = $2, date_of_founding = $3 WHERE id = $4", [
+		name,
+		location,
+		date_of_founding,
 		breweryID,
 	  ]);
-	  res.sendStatus(200);
+	  res.status(200).json({ messagee: "Brewery updated successfully"})
 	} catch (error) {
-	  res.sendStatus(500).json({ error: "Error updating brewery" });
+	  res.status(500).json({ error: "Error updating brewery"});
 	}
  
  
