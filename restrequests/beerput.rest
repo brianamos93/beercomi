@@ -1,0 +1,9 @@
+PUT http://localhost:3005/breweries/144aed9b-cb5b-4155-a2f6-9f6ebc8833cc HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkaXNwbGF5X25hbWUiOiJHdWVzdCIsImlkIjoiM2I4ZTYzOGUtNTY2Yy00ZTljLThjZmYtY2VhYmMwYTBjZjI0IiwiaWF0IjoxNzUxNjQwNTMzLCJleHAiOjE3NTE2NDQxMzN9.iiJ8a0exNYYCja-8BDAi6WC3nwoOYoLwZt445Ya_9SQ
+
+{
+	"name": "Testeter",
+	"date_of_founding": "2000",
+	"location": "Test Location"
+}

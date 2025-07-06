@@ -1,13 +1,13 @@
 POST http://localhost:3005/beers/ HTTP/1.1
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNiOGU2MzhlLTU2NmMtNGU5Yy04Y2ZmLWNlYWJjMGEwY2YyNCIsImlhdCI6MTczOTM2NjY5NSwiZXhwIjoxNzM5MzcwMjk1fQ.6JYBzQ51JqqOdnpbV6BtiptE7ErWL0dSQoYLjG1PwlY
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNiOGU2MzhlLTU2NmMtNGU5Yy04Y2ZmLWNlYWJjMGEwY2YyNCIsImlhdCI6MTc0MDQ5MDI5OSwiZXhwIjoxNzQwNDkzODk5fQ.ReBCj92fuREaEe-bjp174ye1sbATazCmAxSLgfG2rMw
 
 {
-	"name": "New Beer",
-	"brewery": null,
-	"description": "A cool beer",
-	"style": "IPA",
-	"ibu": "10",
-	"abv": "6",
+	"name": "Strawberry Sour",
+	"brewery": "144aed9b-cb5b-4155-a2f6-9f6ebc8833cc",
+	"description": "A sweet but sour ale",
+	"style": "Wild Ale",
+	"ibu": "3",
+	"abv": "5",
 	"color": "golden"
 }

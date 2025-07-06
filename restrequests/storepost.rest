@@ -1,9 +1,9 @@
 POST http://localhost:3005/stores/ HTTP/1.1
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNiOGU2MzhlLTU2NmMtNGU5Yy04Y2ZmLWNlYWJjMGEwY2YyNCIsImlhdCI6MTczOTM2NjU0MCwiZXhwIjoxNzM5MzcwMTQwfQ.3jQSoNMcjvTVkuhGF8qGL7zE3BYFVMpUHt1Pr7pUGlM
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNiOGU2MzhlLTU2NmMtNGU5Yy04Y2ZmLWNlYWJjMGEwY2YyNCIsImlhdCI6MTc0MDQ5MDI5OSwiZXhwIjoxNzQwNDkzODk5fQ.ReBCj92fuREaEe-bjp174ye1sbATazCmAxSLgfG2rMw
 
 {
-	"name": "New Store",
-	"location": "America",
-	"date_of_founding": "2006"
+	"name": "Craft Beer Creek",
+	"location": "Fukuoka, Japan",
+	"date_of_founding": "2014"
 }
