@@ -37,7 +37,7 @@ async function storeUser(storeID: String) {
 
 router.get("/", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT * FROM stores WHERE verified = FALSE");
+		const result = await pool.query("SELECT * FROM stores WHERE verified = TRUE");
 		const stores: Stores[] = result.rows;
 		res.json(stores);
 		} catch (error) {
@@ -59,7 +59,25 @@ router.get("/all", async (req: Request, res: Response) => {
 router.get("/:id", async (req: Request, res: Response) => {
 	const storeId = req.params.id
 	try {
-		const result = await pool.query("SELECT * FROM stores WHERE id = $1", [storeId])
+		const result = await pool.query(`SELECT 
+			stores.id, 
+			stores.name, 
+			stores.location, 
+			stores.date_of_founding, 
+			stores.date_created, 
+			stores.date_updated, 
+			stores.author, 
+			stores.owner, 
+			stores.verified, 
+			beers.name AS beer_name, 
+			store_menus.size, 
+			store_menus.price, 
+			store_menus.date_created AS menu_date_created, 
+			store_menus.date_updated AS menu_date_created 
+			FROM stores 
+			LEFT JOIN store_menus ON stores.id = store_menus.store_id
+			LEFT JOIN beers ON store_menus.beer_id = beers.id
+			WHERE stores.id = $1`, [storeId])
 		const stores: Stores[] = result.rows[0];
 		res.json(stores)
 	} catch (error) {
