@@ -8,7 +8,7 @@ const router = Router();
 
 interface User {
 	id: number,
-	username: string,
+	display_name: string,
 	email: string,
 	password: string,
 	role: string,
@@ -38,7 +38,7 @@ router.post("/login", async (req: Request, res: Response) => {
 		}
 
 		const userForToken = {
-			username: user.rows[0].user,
+			display_name: user.rows[0].display_name,
 			id: user.rows[0].id,
 		}
 
@@ -46,7 +46,7 @@ router.post("/login", async (req: Request, res: Response) => {
 			process.env.SECRET,
 			{ expiresIn: 60*60 }
 		)
-
+		console.log(userForToken)
 		res
 		.status(200)
 		.send({token, userForToken})
@@ -58,7 +58,7 @@ router.post("/login", async (req: Request, res: Response) => {
 
 router.get("/users", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT users.id, users.username, users.role FROM users")
+		const result = await pool.query("SELECT users.id, users.display_name, users.role FROM users")
 		const users: User[] = result.rows
 		res.json(users)
 	} catch (error) {
@@ -69,7 +69,7 @@ router.get("/users", async (req: Request, res: Response) => {
 
 router.get("/users/beers", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT users.id, users.username, beers.name, beers.description FROM users INNER JOIN beers ON users.id = beers.author")
+		const result = await pool.query("SELECT users.id, users.display_name, beers.name, beers.description FROM users INNER JOIN beers ON users.id = beers.author")
 		const users: User[] = result.rows
 		res.json(users)
 	} catch (error) {
@@ -80,7 +80,7 @@ router.get("/users/beers", async (req: Request, res: Response) => {
 
 router.get("/users/breweries", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT users.id, users.username, breweries.name, breweries.description FROM users INNER JOIN breweries ON users.id = brewery.author")
+		const result = await pool.query("SELECT users.id, users.display_name, breweries.name, breweries.description FROM users INNER JOIN breweries ON users.id = brewery.author")
 		const users: User[] = result.rows
 		res.json(users)
 	} catch (error) {
@@ -90,23 +90,23 @@ router.get("/users/breweries", async (req: Request, res: Response) => {
 })
 
 router.post("/signup", async ( req: Request, res: Response ) => {
-	const { username, email, password } = req.body
+	const { display_name, email, password } = req.body
 
 	const saltRounds = 10
 	const passwordHash = await bcrypt.hash(password, saltRounds)
 
 	try {
 	const emailCheck = await pool.query("SELECT id FROM users WHERE email = $1", [email])
-	const usernameCheck = await pool.query("SELECT id FROM users WHERE username = $1", [username])
+	const display_nameCheck = await pool.query("SELECT id FROM users WHERE display_name = $1", [display_name])
 
 	if (emailCheck.rowCount != 0) {
 		return res.status(500).json({ error: "Email invalid or in use" })
 	}
-	if (usernameCheck.rowCount != 0) {
-		return res.status(500).json({ error: "Username not valid or in use"})
+	if (display_nameCheck.rowCount != 0) {
+		return res.status(500).json({ error: "Display Name not valid or in use"})
 	}
 		const result = await pool.query(
-			"INSERT INTO users(email, password, username) VALUES($1, $2, $3) RETURNING *", [email, passwordHash, username]
+			"INSERT INTO users(email, password, display_name) VALUES($1, $2, $3) RETURNING *", [email, passwordHash, display_name]
 		)
 		const createdUser: User = result.rows[0]
 		res.status(201).json(createdUser)
@@ -116,10 +116,22 @@ router.post("/signup", async ( req: Request, res: Response ) => {
 	}
 })
 
-router.get("/user/:id", async (req: Request, res: Response ) => {
+router.get("/user/detailed/:id", async (req: Request, res: Response ) => {
 	const userID = req.params.id
 	  try {
 		const result = await pool.query("SELECT beers.name FROM users JOIN beers ON users.id = beers.author WHERE users.id = $1 ", [userID]);
+		const user: User[] = result.rows[0];
+		res.json(user);
+	  } catch (error) {
+		console.error("Error fetching user", error);
+		res.status(500).json({ error: "Error fetching user" });
+	  }
+})
+
+router.get("/user/:id", async (req: Request, res: Response ) => {
+	const userID = req.params.id
+	  try {
+		const result = await pool.query("SELECT users.id, users.display_name, users.email FROM users WHERE users.id = $1 ", [userID]);
 		const user: User[] = result.rows[0];
 		res.json(user);
 	  } catch (error) {
