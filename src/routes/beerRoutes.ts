@@ -182,8 +182,7 @@ router.put("/:id", async (req: Request, res: Response) => {
 
 //create new review
  router.post("/review/:id", async (req: Request, res: Response) => {
-	const beerID = req.params.id
-	const { rating, review } = req.body;
+	const { rating, review, beer } = req.body;
 	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
 	 return res.status(401).json({ error: 'token invalid'})
@@ -194,8 +193,8 @@ router.put("/:id", async (req: Request, res: Response) => {
  
 	try {
 	  const result = await pool.query(
-		"INSERT INTO beer_reviews (authorid, beerid, rating, review) VALUES ($1, $2, $3, $4) RETURNING *",
-		[user.rows[0].id, beerID, rating, review]
+		"INSERT INTO beer_reviews (author, beer, rating, review) VALUES ($1, $2, $3, $4) RETURNING *",
+		[user.rows[0].id, beer, rating, review]
 	  );
 	  const createdReview: Review = result.rows[0];
 	  res.status(201).json(createdReview);
