@@ -181,7 +181,7 @@ router.put("/:id", async (req: Request, res: Response) => {
  });
 
 //create new review
- router.post("/review/:id", async (req: Request, res: Response) => {
+ router.post("/review/", async (req: Request, res: Response) => {
 	const { rating, review, beer } = req.body;
 	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
