@@ -75,7 +75,32 @@ router.get("/list", async (req: Request, res: Response) => {
 router.get("/:id", async (req: Request, res: Response) => {
 	const beerId = req.params.id
 	try {
-		const result = await pool.query("SELECT beers.id, beers.name, beers.brewery_id, breweries.name AS brewery_name, beers.description, beers.style, beers.ibu, beers.abv, beers.color, beers.author, beers.date_updated, beers.date_created, beer_reviews.rating, beer_reviews.review FROM beers LEFT JOIN breweries ON beers.brewery_id = breweries.id LEFT JOIN beer_reviews ON beers.id = beer_reviews.beer LEFT JOIN users ON beer_reviews.author = users.id WHERE beers.id = $1", [beerId])
+		const result = await pool.query(`SELECT 
+			beers.id, 
+			beers.name, 
+			beers.brewery_id, 
+			breweries.name AS brewery_name, 
+			beers.description, 
+			beers.style, 
+			beers.ibu, 
+			beers.abv, 
+			beers.color, 
+			beers.author, 
+			beers.date_updated, 
+			beers.date_created,
+			COALESCE(json_agg(
+				json_build_object(
+				'id', beer_reviews.id,
+				'rating', beer_reviews.rating,
+				'review', beer_reviews.review,
+				'author', beer_reviews.author
+				)
+			) FILTER (WHERE beer_reviews.id IS NOT NULL), '[]') AS reviews
+			FROM beers
+			LEFT JOIN breweries ON beers.brewery_id = breweries.id
+			LEFT JOIN beer_reviews ON beers.id = beer_reviews.beer
+			WHERE beers.id = $1
+			GROUP BY beers.id, breweries.name;`, [beerId])
 		const beer: Beer = result.rows[0];
 		beer.abv = beer.abv / 10
 		res.json(beer)
