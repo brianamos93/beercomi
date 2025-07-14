@@ -2,6 +2,7 @@ POST http://localhost:3005/signup/ HTTP/1.1
 Content-Type: application/json
 
 {
-	"email": "email@email.com",
-	"password": "test"
+	"display_name": "AdminUser",
+	"email": "admin@admin.com",
+	"password": "admin"
 }
