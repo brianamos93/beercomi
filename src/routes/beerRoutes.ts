@@ -76,31 +76,40 @@ router.get("/:id", async (req: Request, res: Response) => {
 	const beerId = req.params.id
 	try {
 		const result = await pool.query(`SELECT 
-			beers.id, 
-			beers.name, 
-			beers.brewery_id, 
-			breweries.name AS brewery_name, 
-			beers.description, 
-			beers.style, 
-			beers.ibu, 
-			beers.abv, 
-			beers.color, 
-			beers.author, 
-			beers.date_updated, 
-			beers.date_created,
-			COALESCE(json_agg(
-				json_build_object(
-				'id', beer_reviews.id,
-				'rating', beer_reviews.rating,
-				'review', beer_reviews.review,
-				'author', beer_reviews.author
-				)
-			) FILTER (WHERE beer_reviews.id IS NOT NULL), '[]') AS reviews
-			FROM beers
-			LEFT JOIN breweries ON beers.brewery_id = breweries.id
-			LEFT JOIN beer_reviews ON beers.id = beer_reviews.beer
-			WHERE beers.id = $1
-			GROUP BY beers.id, breweries.name;`, [beerId])
+					beers.id, 
+					beers.name, 
+					beers.brewery_id, 
+					breweries.name AS brewery_name, 
+					beers.description, 
+					beers.style, 
+					beers.ibu, 
+					beers.abv, 
+					beers.color, 
+					beers.author,
+					beer_authors.display_name AS author_name,
+					beer_authors.id AS author_id,  -- beer author's user id
+					beers.date_updated, 
+					beers.date_created,
+					COALESCE(json_agg(
+						json_build_object(
+						'id', beer_reviews.id,
+						'rating', beer_reviews.rating,
+						'review', beer_reviews.review,
+						'author_id', review_authors.id,
+						'author_name', review_authors.display_name
+						)
+					) FILTER (WHERE beer_reviews.id IS NOT NULL), '[]') AS reviews
+					FROM beers
+					LEFT JOIN breweries ON beers.brewery_id = breweries.id
+					LEFT JOIN beer_reviews ON beers.id = beer_reviews.beer
+					LEFT JOIN users AS review_authors ON beer_reviews.author = review_authors.id
+					LEFT JOIN users AS beer_authors ON beers.author = beer_authors.id
+					WHERE beers.id = $1
+					GROUP BY 
+					beers.id, 
+					breweries.name, 
+					beer_authors.display_name, 
+					beer_authors.id;`, [beerId])
 		const beer: Beer = result.rows[0];
 		beer.abv = beer.abv / 10
 		res.json(beer)
