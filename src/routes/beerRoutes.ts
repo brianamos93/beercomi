@@ -214,6 +214,31 @@ router.put("/:id", async (req: Request, res: Response) => {
 	}
  });
 
+router.get("/review/:id", async (req: Request, res: Response) => {
+	const reviewId = req.params.id
+	try {
+		const result = await pool.query(`SELECT
+			 beer_reviews.id,
+			 beer_reviews.author AS authorid,
+			 beer_reviews.beer AS beerid,
+			 beer_reviews.review,
+			 beer_reviews.rating,
+			 users.id AS author_id,
+			 users.display_name AS author_name
+			FROM beer_reviews
+			JOIN users ON beer_reviews.author = users.id
+			FROM beer_reviews WHERE id = $1`, [reviewId]);
+		if (result.rowCount === 0) {
+			return res.status(404).json({ error: "Review not found" });
+		}
+		const review: Review = result.rows[0];
+		res.json(review);
+	} catch (error) {
+		console.error("Error fetching review", error);
+		res.status(500).json({ error: "Error fetching review" });
+	}
+})
+ 
 //create new review
  router.post("/review/", async (req: Request, res: Response) => {
 	const { rating, review, beer } = req.body;
