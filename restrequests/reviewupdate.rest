@@ -1,0 +1,10 @@
+PUT http://localhost:3005/beers/review/8b8b461f-2e58-484d-9bf1-2d7024904f78 HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkaXNwbGF5X25hbWUiOiJBZG1pblVzZXIiLCJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsImlhdCI6MTc1Mjc1ODkxNSwiZXhwIjoxNzUyNzYyNTE1fQ.EANTtux9bKURsN19tGGB2ud46xnldkm1nFs6-JVq1VI
+
+{
+	"rating": 3,
+  "review": "I am testing the review update functionality again 7/17/2025 at 10:29",
+  "beer": "74aaf98a-4580-4b36-baa9-f70eef7b0f43"
+
+}
