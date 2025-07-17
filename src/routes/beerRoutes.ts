@@ -4,6 +4,7 @@ import { tokenUser, decodeToken } from "../utils/userlib"
 
 const router = Router();
 
+
 interface Beer {
 	id: string;
 	name: string;
@@ -40,7 +41,7 @@ async function beerUser(beerID: String) {
  } 
 
  async function reviewUser(reviewID:String) {
-	return await pool.query("SELECT authorid FROM beer_review WHERE id = $1", [reviewID])
+	return await pool.query("SELECT author FROM beer_reviews WHERE id = $1", [reviewID])
  }
 
 router.get("/", async (req: Request, res: Response) => {
@@ -218,16 +219,16 @@ router.get("/review/:id", async (req: Request, res: Response) => {
 	const reviewId = req.params.id
 	try {
 		const result = await pool.query(`SELECT
-			 beer_reviews.id,
-			 beer_reviews.author AS authorid,
-			 beer_reviews.beer AS beerid,
-			 beer_reviews.review,
-			 beer_reviews.rating,
-			 users.id AS author_id,
-			 users.display_name AS author_name
+			beer_reviews.id,
+			beer_reviews.author AS authorid,
+			beer_reviews.beer AS beerid,
+			beer_reviews.review,
+			beer_reviews.rating,
+			users.id AS author_id,
+			users.display_name AS author_name
 			FROM beer_reviews
 			JOIN users ON beer_reviews.author = users.id
-			FROM beer_reviews WHERE id = $1`, [reviewId]);
+			WHERE beer_reviews.id = $1;`, [reviewId]);
 		if (result.rowCount === 0) {
 			return res.status(404).json({ error: "Review not found" });
 		}
@@ -265,33 +266,40 @@ router.get("/review/:id", async (req: Request, res: Response) => {
 //update review
 router.put("/review/:id", async (req: Request, res: Response) => {
 	const reviewID = req.params.id
-	const { rating, review } = req.body;
+	const { rating, review, beer } = req.body;
 	const reviewcheck = await reviewLookup(reviewID)
+	const numberRating = Number(rating)
  
 	if (reviewcheck.rowCount == 0) {
-	 return res.status(401).json({ error: 'review does not exist'})
+	 return (
+		res.status(401).json({ error: 'review does not exist'})
+	)
 	}
  
 	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
-	 return res.status(401).json({ error: 'token invalid'})
+	 return (
+		res.status(401).json({ error: 'token invalid'})
+	 ) 
+	 
 	}
   
 	const user = await tokenUser(decodedToken)
 	const reviewuser = await reviewUser(reviewID)
  
-	if (user.rows[0].id !== reviewuser.rows[0].authorid) {
+	if (user.rows[0].id !== reviewuser.rows[0].author) {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
 	try {
-	  await pool.query("UPDATE beers SET rating = $1, review = $2 WHERE id = $3", [
-		rating,
+	  await pool.query("UPDATE beer_reviews SET rating = $1, review = $2, beer = $3 WHERE id = $4", [
+		numberRating,
 		review,
+		beer,
 		reviewID
 	  ]);
-	  res.sendStatus(200);
+	  res.status(200).json({ message: "Review updated successfully"});
 	} catch (error) {
-	  res.sendStatus(500).json({ error: "Error updating review" });
+	  res.status(500).json({ error: "Error updating review" });
 	}
  });
 //delete review
@@ -308,7 +316,7 @@ router.delete("/review/:id", async (req: Request, res: Response) => {
  
 	const user = await tokenUser(decodedToken)
 	const reviewuser = await reviewUser(reviewID)
-	if (user.rows[0].id !== reviewuser.rows[0].authorid || user.rows[0].role !== "admin") {
+	if (user.rows[0].id !== reviewuser.rows[0].author && user.rows[0].role !== "admin") {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
 	try {
