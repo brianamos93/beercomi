@@ -11,7 +11,7 @@ interface Brewery {
 	date_of_founding: string;
 	date_created: Date;
 	date_updated: Date;
-	author: string;
+	author_id: string;
 	owner: string;
 }
 
@@ -57,7 +57,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 	breweries.date_created, 
 	breweries.date_updated, 
 	brewery_authors.display_name, 
-	breweries.authorid, 
+	breweries.author_id, 
 	COALESCE(json_agg(json_build_object(
 		'id', beers.id,
 		'name', beers.name,
@@ -103,7 +103,7 @@ router.post("/", async (req: Request, res: Response) => {
  
 	try {
 	  const result = await pool.query(
-		"INSERT INTO breweries (name, location, date_of_founding, authorid) VALUES ($1, $2, $3, $4) RETURNING *",
+		"INSERT INTO breweries (name, location, date_of_founding, author_id) VALUES ($1, $2, $3, $4) RETURNING *",
 		[name, location, date_of_founding, user.rows[0].id]
 	  );
 	  const createdBrewery: Brewery = result.rows[0];
@@ -157,7 +157,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 	const user = await tokenUser(decodedToken)
 	const breweryuser = await breweryUser(breweryID)
  
-	if (user.rows[0].id !== breweryuser.rows[0].authorid) {
+	if (user.rows[0].id !== breweryuser.rows[0].author_id) {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
 	console.log()

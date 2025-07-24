@@ -1,0 +1,1 @@
+ALTER TABLE breweries RENAME COLUMN authorid to author_id;
