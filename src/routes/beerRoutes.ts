@@ -41,8 +41,9 @@ async function beerUser(beerID: String) {
  } 
 
  async function reviewUser(reviewID:String) {
-	return await pool.query("SELECT author FROM beer_reviews WHERE id = $1", [reviewID])
+	return await pool.query("SELECT author_id FROM beer_reviews WHERE id = $1", [reviewID])
  }
+
 
 router.get("/", async (req: Request, res: Response) => {
 	try {
@@ -102,8 +103,8 @@ router.get("/:id", async (req: Request, res: Response) => {
 					) FILTER (WHERE beer_reviews.id IS NOT NULL), '[]') AS reviews
 					FROM beers
 					LEFT JOIN breweries ON beers.brewery_id = breweries.id
-					LEFT JOIN beer_reviews ON beers.id = beer_reviews.beer
-					LEFT JOIN users AS review_authors ON beer_reviews.author = review_authors.id
+					LEFT JOIN beer_reviews ON beers.id = beer_reviews.beer_id
+					LEFT JOIN users AS review_authors ON beer_reviews.author_id = review_authors.id
 					LEFT JOIN users AS beer_authors ON beers.author = beer_authors.id
 					WHERE beers.id = $1
 					GROUP BY 
@@ -122,7 +123,6 @@ router.get("/:id", async (req: Request, res: Response) => {
 
 router.post("/", async (req: Request, res: Response) => {
 	const { name, brewery_id, description, style, ibu, abv, color } = req.body;
-	console.log(req)
 	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
 	 return res.status(401).json({ error: 'token invalid'})
@@ -130,6 +130,9 @@ router.post("/", async (req: Request, res: Response) => {
 	const user = await pool.query(
 	 "SELECT * FROM users WHERE id = $1", [decodedToken.id]
 	)
+	if(!user) {
+		return res.status(401).json({ error: 'User not found'})
+	}
  
 	// TypeScript type-based input validation
 	if (typeof name !== "string" || name.trim() === "") {
@@ -220,14 +223,13 @@ router.get("/review/:id", async (req: Request, res: Response) => {
 	try {
 		const result = await pool.query(`SELECT
 			beer_reviews.id,
-			beer_reviews.author AS authorid,
-			beer_reviews.beer AS beerid,
+			beer_reviews.author_id,
+			beer_reviews.beer_id,
 			beer_reviews.review,
 			beer_reviews.rating,
-			users.id AS author_id,
-			users.display_name AS author_name
+			users.display_name AS author_display_name
 			FROM beer_reviews
-			JOIN users ON beer_reviews.author = users.id
+			JOIN users ON beer_reviews.author_id = users.id
 			WHERE beer_reviews.id = $1;`, [reviewId]);
 		if (result.rowCount === 0) {
 			return res.status(404).json({ error: "Review not found" });
@@ -253,7 +255,7 @@ router.get("/review/:id", async (req: Request, res: Response) => {
  
 	try {
 	  const result = await pool.query(
-		"INSERT INTO beer_reviews (author, beer, rating, review) VALUES ($1, $2, $3, $4) RETURNING *",
+		"INSERT INTO beer_reviews (author_id, beer_id, rating, review) VALUES ($1, $2, $3, $4) RETURNING *",
 		[user.rows[0].id, beer, rating, review]
 	  );
 	  const createdReview: Review = result.rows[0];
@@ -291,7 +293,7 @@ router.put("/review/:id", async (req: Request, res: Response) => {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
 	try {
-	  await pool.query("UPDATE beer_reviews SET rating = $1, review = $2, beer = $3 WHERE id = $4", [
+	  await pool.query("UPDATE beer_reviews SET rating = $1, review = $2, beer_id = $3 WHERE id = $4", [
 		numberRating,
 		review,
 		beer,
