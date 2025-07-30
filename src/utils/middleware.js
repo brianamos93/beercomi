@@ -1,4 +1,5 @@
 const logger = require('./logger')
+const jwt = require('jsonwebtoken')
 
 const requestLogger = (request, response, next) => {
   logger.info('Method:', request.method)
@@ -23,6 +24,19 @@ const errorHandler = (error, request, response, next) => {
   }
 
   next(error)
+}
+
+const authenticationHandler = (req, res, next) => {
+ 
+  const token = getTokenFrom(req)
+  
+  if (!token) return res.status(401).send({error: 'Not Authorized'})
+
+    jwt.verify(token, process.env.SECRET, (err, user) => {
+      if(err) return res.status(403).send({error: "Error"})
+        req.user = user
+        next()
+    })
 }
 
 module.exports = {
