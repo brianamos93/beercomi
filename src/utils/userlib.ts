@@ -4,7 +4,7 @@ import pool from "../utils/db";
 
 export async function tokenUser(decodedToken: any) {
 	return await pool.query(
-   "SELECT id, role FROM users WHERE id = $1",[decodedToken.id]
+   "SELECT id, role, display_name FROM users WHERE id = $1",[decodedToken.id]
 	);
   }
 
