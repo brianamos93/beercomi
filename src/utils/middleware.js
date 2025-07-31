@@ -1,5 +1,6 @@
 const logger = require('./logger')
 const jwt = require('jsonwebtoken')
+const { getTokenFrom } = require('./userlib');
 
 const requestLogger = (request, response, next) => {
   logger.info('Method:', request.method)
@@ -42,5 +43,6 @@ const authenticationHandler = (req, res, next) => {
 module.exports = {
   requestLogger,
   unknownEndpoint,
-  errorHandler
+  errorHandler,
+  authenticationHandler
 }
