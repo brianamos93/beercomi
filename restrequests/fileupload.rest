@@ -1,0 +1,11 @@
+POST http://localhost:3005/profile/upload HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkaXNwbGF5X25hbWUiOiJBZG1pblVzZXIiLCJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsImlhdCI6MTc1Mzk2NjgzNiwiZXhwIjoxNzUzOTcwNDM2fQ.AmKKqAi6hhHSiwZ7n4ctXROVtvi09Z6UHQkmogEyXA4
+
+
+--MfnBoundry
+Content-Disposition: form-data; name="avatar"; filename="test.png"
+Content-Type: text/plain
+
+< ./test.png
+--MfnBoundry--

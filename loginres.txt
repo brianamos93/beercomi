@@ -1,0 +1,7 @@
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkaXNwbGF5X25hbWUiOiJBZG1pblVzZXIiLCJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsImlhdCI6MTc1Mzk2MjE0OSwiZXhwIjoxNzUzOTY1NzQ5fQ.yRhOTBsQdOFRSSU-Dj-5Ky018WCHaFxRm_DUUT5Vnqc",
+  "userForToken": {
+    "display_name": "AdminUser",
+    "id": "8807a6d0-9d0e-4949-9373-1baa44e73d49"
+  }
+}
