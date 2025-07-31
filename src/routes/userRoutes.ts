@@ -1,8 +1,42 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import pool from "../utils/db";
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 import { tokenUser, decodeToken } from "../utils/userlib";
+const multer = require('multer')
+import fs from 'fs';
+import path from 'path';
+import { FileFilterCallback } from "multer";
+const { authenticationHandler } = require("../utils/middleware");
+interface CustomRequest extends Request {
+  file?: Express.Multer.File; // For single file uploads
+  files?: Express.Multer.File[]; // For multiple file uploads (array of files)
+}
+
+const uploadPath = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadPath)) {
+  fs.mkdirSync(uploadPath);
+}
+
+const storage = multer.diskStorage({
+  destination: (_req: Request, _file: File, cb: Function) => cb(null, uploadPath),
+  filename: async (req: Request, file: Request["file"], cb: Function) => {
+	const decodedToken = decodeToken(req)
+	const user = await tokenUser(decodedToken)
+    const display_name = user.rows[0].display_name
+	const ext = file && file.originalname ? path.extname(file.originalname) : '';
+	cb(null, `${display_name}-${Date.now()}${ext}`);
+  }
+});
+
+const fileFilter = (_req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
+  const allowedTypes = ['image/jpeg', 'image/png'];
+  if (allowedTypes.includes(file.mimetype)) cb(null, true);
+  else cb(new Error('Only .jpeg and .png files are allowed'));
+};
+
+const upload = multer({ storage, fileFilter });
+
 
 const router = Router();
 
@@ -54,6 +88,11 @@ router.post("/login", async (req: Request, res: Response) => {
 		console.error("Error loginning in", error)
 		res.status(500).json({ error: "Error logging in" })
 	}
+})
+
+router.post("/profile/upload", authenticationHandler, upload.single('image'), async (req: Request, res: Response) => {
+	if (!req.file) return res.status(400).json({ error: "No file uploaded"})
+	res.json({ message: "Upload Sucessful", file: req.file })
 })
 
 router.get("/users", async (req: Request, res: Response) => {
