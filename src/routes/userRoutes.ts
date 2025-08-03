@@ -7,6 +7,7 @@ const multer = require('multer')
 import fs from 'fs';
 import path from 'path';
 import { FileFilterCallback } from "multer";
+import sharp from "sharp";
 const { authenticationHandler } = require("../utils/middleware");
 interface CustomRequest extends Request {
   file?: Express.Multer.File; // For single file uploads
@@ -18,24 +19,13 @@ if (!fs.existsSync(uploadPath)) {
   fs.mkdirSync(uploadPath);
 }
 
-const storage = multer.diskStorage({
-  destination: (_req: Request, _file: File, cb: Function) => cb(null, uploadPath),
-  filename: async (req: Request, file: Request["file"], cb: Function) => {
-	const decodedToken = decodeToken(req)
-	const user = await tokenUser(decodedToken)
-    const display_name = user.rows[0].display_name
-	const ext = file && file.originalname ? path.extname(file.originalname) : '';
-	cb(null, `${display_name}-${Date.now()}${ext}`);
-  }
-});
-
 const fileFilter = (_req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
   const allowedTypes = ['image/jpeg', 'image/png'];
   if (allowedTypes.includes(file.mimetype)) cb(null, true);
   else cb(new Error('Only .jpeg and .png files are allowed'));
 };
 
-const upload = multer({ storage, fileFilter });
+const upload = multer({ storage: multer.memoryStorage(), fileFilter });
 
 
 const router = Router();
@@ -74,6 +64,7 @@ router.post("/login", async (req: Request, res: Response) => {
 		const userForToken = {
 			display_name: user.rows[0].display_name,
 			id: user.rows[0].id,
+			profile_img_url: user.rows[0].profile_img_url
 		}
 
 		const token = jwt.sign(userForToken,
@@ -90,9 +81,68 @@ router.post("/login", async (req: Request, res: Response) => {
 	}
 })
 
-router.post("/profile/upload", authenticationHandler, upload.single('image'), async (req: Request, res: Response) => {
-	if (!req.file) return res.status(400).json({ error: "No file uploaded"})
-	res.json({ message: "Upload Sucessful", file: req.file })
+router.post("/profile/img/upload", authenticationHandler, upload.single('image'), async (req: Request, res: Response) => {
+	try {
+		if (!req.file) return res.status(400).json({ error: "No file uploaded"})
+			const decodedToken = decodeToken(req)
+			const user = await tokenUser(decodedToken)
+			const display_name = user.rows[0].display_name
+			const ext: string = req.file && req.file.originalname ? path.extname(req.file.originalname) : '';
+			const avatardir = user.rows[0].profile_img_url
+			const newFileName = `${display_name}-${Date.now()}${ext}`
+			const uploadFilePathAndFile = path.join(uploadPath, newFileName)
+			if (avatardir !== null) {
+				const oldFilePath = path.join(uploadPath, avatardir)
+				if (fs.existsSync(oldFilePath)) {
+					fs.unlinkSync(oldFilePath)
+				}
+			}
+			await sharp(req.file.buffer).resize(200,200).toFile(uploadFilePathAndFile)
+			const userId = user.rows[0].id
+			await pool.query(`
+				UPDATE users
+				SET profile_img_url = $1
+				WHERE id = $2
+				RETURNING *;
+				`, [newFileName, userId])
+				res.json({message: "Upload Sucessful"})
+		} catch (error) {
+			res.status(401).json({error: "Error uploading avatar."})
+		}
+})
+
+router.delete("/profile/img", authenticationHandler, async(req: Request, res: Response) => {
+    const decodedToken = decodeToken(req)
+    if (!decodedToken.id) return res.status(401).json({ error: 'token invalid' })
+    const user = await tokenUser(decodedToken)
+    const userId = user.rows[0].id
+    const avatardir = user.rows[0].profile_img_url
+    console.log("Avatar path:", avatardir)
+    if (!avatardir) return res.status(404).json({message: "Avatar Not Found."})
+    const oldFilePath = path.join(uploadPath, avatardir)
+    if (fs.existsSync(oldFilePath)) {
+        fs.unlinkSync(oldFilePath)
+        try {
+            await pool.query(`
+                UPDATE users
+                SET profile_img_url = null
+                WHERE id = $1
+                RETURNING *;
+            `, [userId])
+            return res.json({message: "Avatar Successfully Deleted."})
+        } catch (error) {
+            return res.status(500).json({error})
+        }
+    } else {
+        // File does not exist, but clear DB reference anyway
+        await pool.query(`
+            UPDATE users
+            SET profile_img_url = null
+            WHERE id = $1
+            RETURNING *;
+        `, [userId])
+        return res.json({message: "Avatar reference removed, file not found."})
+    }
 })
 
 router.get("/users", async (req: Request, res: Response) => {
