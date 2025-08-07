@@ -36,6 +36,9 @@ interface User {
 	email: string,
 	password: string,
 	role: string,
+	profile_img_url: string,
+	present_location: string,
+	introduction: string,
 }
 
 async function userIdGet(userId: string) {
@@ -117,7 +120,6 @@ router.delete("/profile/img", authenticationHandler, async(req: Request, res: Re
     const user = await tokenUser(decodedToken)
     const userId = user.rows[0].id
     const avatardir = user.rows[0].profile_img_url
-    console.log("Avatar path:", avatardir)
     if (!avatardir) return res.status(404).json({message: "Avatar Not Found."})
     const oldFilePath = path.join(uploadPath, avatardir)
     if (fs.existsSync(oldFilePath)) {
@@ -147,7 +149,7 @@ router.delete("/profile/img", authenticationHandler, async(req: Request, res: Re
 
 router.get("/users", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT users.id, users.display_name, users.role FROM users")
+		const result = await pool.query("SELECT users.id, users.display_name, users.role, users.profile_img_url, users.present_location, users.introduction FROM users")
 		const users: User[] = result.rows
 		res.json(users)
 	} catch (error) {
@@ -158,7 +160,7 @@ router.get("/users", async (req: Request, res: Response) => {
 
 router.get("/users/beers", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT users.id, users.display_name, beers.name, beers.description FROM users INNER JOIN beers ON users.id = beers.author")
+		const result = await pool.query("SELECT users.id, users.display_name, users.profile_img_url, beers.name, beers.description FROM users INNER JOIN beers ON users.id = beers.author")
 		const users: User[] = result.rows
 		res.json(users)
 	} catch (error) {
@@ -169,7 +171,7 @@ router.get("/users/beers", async (req: Request, res: Response) => {
 
 router.get("/users/breweries", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT users.id, users.display_name, breweries.name, breweries.description FROM users INNER JOIN breweries ON users.id = brewery.author")
+		const result = await pool.query("SELECT users.id, users.display_name, users.profile_img_url, breweries.name, breweries.description FROM users INNER JOIN breweries ON users.id = brewery.author")
 		const users: User[] = result.rows
 		res.json(users)
 	} catch (error) {
@@ -205,22 +207,10 @@ router.post("/signup", async ( req: Request, res: Response ) => {
 	}
 })
 
-router.get("/user/detailed/:id", async (req: Request, res: Response ) => {
-	const userID = req.params.id
-	  try {
-		const result = await pool.query("SELECT beers.name FROM users JOIN beers ON users.id = beers.author WHERE users.id = $1 ", [userID]);
-		const user: User[] = result.rows[0];
-		res.json(user);
-	  } catch (error) {
-		console.error("Error fetching user", error);
-		res.status(500).json({ error: "Error fetching user" });
-	  }
-})
-
 router.get("/user/:id", async (req: Request, res: Response ) => {
 	const userID = req.params.id
 	  try {
-		const result = await pool.query("SELECT users.id, users.display_name, users.email FROM users WHERE users.id = $1 ", [userID]);
+		const result = await pool.query("SELECT users.id, users.display_name, users.profile_img_url, users.present_location, users.introduction, users.role,  FROM users WHERE users.id = $1 ", [userID]);
 		const user: User[] = result.rows[0];
 		res.json(user);
 	  } catch (error) {
@@ -256,6 +246,16 @@ router.put("/user/:id", async (req: Request, res: Response) => {
 	const saltRounds = 10
 	const passwordHash = await bcrypt.hash(password, saltRounds)
 
+	const decodedToken = decodeToken(req)
+	if (!decodedToken.id) {
+	 return res.status(401).json({ error: 'token invalid'})
+	}
+	const user = await tokenUser(decodedToken)
+	const userDataResult = await userIdGet(userID)
+	if (user.rows[0].id !== userDataResult.rows[0].id || userDataResult.rows[0].role !== "admin") {
+		return res.status(400).json({ error: "User not authorized" })
+	}
+
 	try {
 		await pool.query("UPDATE users SET password = $1 WHERE id = $2", [
 			passwordHash,
@@ -271,6 +271,16 @@ router.put("/user/:id", async (req: Request, res: Response) => {
 router.put("/user/:id/role", async (req: Request, res: Response) => {
 	const userID = req.params.id
 	const { role } = req.body;
+
+	const decodedToken = decodeToken(req)
+	if (!decodedToken.id) {
+	 return res.status(401).json({ error: 'token invalid'})
+	}
+	const user = await tokenUser(decodedToken)
+	const userDataResult = await userIdGet(userID)
+	if (userDataResult.rows[0].role !== "admin") {
+		return res.status(400).json({ error: "User not authorized" })
+	}
 
 	try {
 		await pool.query("UPDATE users SET role = $1 WHERE id = $2", [
