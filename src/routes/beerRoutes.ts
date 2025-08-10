@@ -14,7 +14,7 @@ interface Beer {
 	ibu: number;
 	abv: number;
 	color: string;
-	author: string;
+	author_id: string;
 	date_created: Date;
 	date_updated: Date
  
@@ -33,7 +33,7 @@ async function beerlookup(beerID: String) {
   }
 
 async function beerUser(beerID: String) {
-	return await pool.query("SELECT author FROM beers WHERE id = $1", [beerID]);
+	return await pool.query("SELECT author_id FROM beers WHERE id = $1", [beerID]);
   }
 
  async function reviewLookup(reviewID:String) {
@@ -87,7 +87,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 					beers.ibu, 
 					beers.abv, 
 					beers.color, 
-					beers.author,
+					beers.author_id,
 					beer_authors.display_name AS author_name,
 					beer_authors.id AS author_id,  -- beer author's user id
 					beers.date_updated, 
@@ -143,7 +143,7 @@ router.post("/", async (req: Request, res: Response) => {
 		const formatedIbu = Number(ibu)
 		const formatedAbv = Number(abv*10)
 	  const result = await pool.query(
-		"INSERT INTO beers (name, brewery_id, description, style, ibu, abv, color, author) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+		"INSERT INTO beers (name, brewery_id, description, style, ibu, abv, color, author_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
 		[name, brewery_id, description, style, formatedIbu, formatedAbv, color, user.rows[0].id]
 	  );
 	  const createdBeer: Beer = result.rows[0];
@@ -195,7 +195,7 @@ router.put("/:id", async (req: Request, res: Response) => {
 	const user = await tokenUser(decodedToken)
 	const beeruser = await beerUser(beerID)
  
-	if (user.rows[0].id !== beeruser.rows[0].author) {
+	if (user.rows[0].id !== beeruser.rows[0].author_id) {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
  
@@ -318,7 +318,7 @@ router.delete("/review/:id", async (req: Request, res: Response) => {
  
 	const user = await tokenUser(decodedToken)
 	const reviewuser = await reviewUser(reviewID)
-	if (user.rows[0].id !== reviewuser.rows[0].author && user.rows[0].role !== "admin") {
+	if (user.rows[0].id !== reviewuser.rows[0].author_id && user.rows[0].role !== "admin") {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
 	try {
