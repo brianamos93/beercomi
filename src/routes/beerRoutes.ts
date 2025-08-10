@@ -105,7 +105,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 					LEFT JOIN breweries ON beers.brewery_id = breweries.id
 					LEFT JOIN beer_reviews ON beers.id = beer_reviews.beer_id
 					LEFT JOIN users AS review_authors ON beer_reviews.author_id = review_authors.id
-					LEFT JOIN users AS beer_authors ON beers.author = beer_authors.id
+					LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
 					WHERE beers.id = $1
 					GROUP BY 
 					beers.id, 
