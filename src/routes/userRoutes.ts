@@ -210,7 +210,7 @@ router.post("/signup", async ( req: Request, res: Response ) => {
 router.get("/user/:id", async (req: Request, res: Response ) => {
 	const userID = req.params.id
 	  try {
-		const result = await pool.query("SELECT users.id, users.display_name, users.profile_img_url, users.present_location, users.introduction, users.role,  FROM users WHERE users.id = $1 ", [userID]);
+		const result = await pool.query("SELECT users.id, users.display_name, users.profile_img_url, users.present_location, users.introduction, users.role FROM users WHERE users.id = $1 ", [userID]);
 		const user: User[] = result.rows[0];
 		res.json(user);
 	  } catch (error) {
