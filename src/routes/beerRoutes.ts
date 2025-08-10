@@ -229,9 +229,11 @@ router.get("/review/:id", async (req: Request, res: Response) => {
 			beer_reviews.rating,
 			beer_reviews.date_created,
 			beer_reviews.date_updated,
-			users.display_name AS author_display_name
+			users.display_name AS author_display_name,
+			beers.name AS beer_name
 			FROM beer_reviews
-			JOIN users ON beer_reviews.author_id = users.id
+			LEFT JOIN users ON beer_reviews.author_id = users.id
+			LEFT JOIN beers ON beer_reviews.beer_id = beers.id
 			WHERE beer_reviews.id = $1;`, [reviewId]);
 		if (result.rowCount === 0) {
 			return res.status(404).json({ error: "Review not found" });
