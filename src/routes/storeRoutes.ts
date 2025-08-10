@@ -11,7 +11,7 @@ interface Stores {
 	date_of_founding: string;
 	date_created: Date;
 	date_updated: Date;
-	author: string;
+	author_id: string;
 	owner: string;
 	verified: boolean;
 }
@@ -32,7 +32,7 @@ async function storelookup(storeID: String) {
   }
 
 async function storeUser(storeID: String) {
-	return await pool.query("SELECT author FROM breweries WHERE id = $1", [storeID]);
+	return await pool.query("SELECT author_id FROM breweries WHERE id = $1", [storeID]);
   }
 
 router.get("/", async (req: Request, res: Response) => {
@@ -66,7 +66,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 			stores.date_of_founding, 
 			stores.date_created, 
 			stores.date_updated, 
-			stores.author, 
+			stores.author_id, 
 			stores.owner, 
 			stores.verified, 
 			beers.name AS beer_name, 
@@ -104,7 +104,7 @@ router.post("/", async (req: Request, res: Response) => {
  
 	try {
 	  const result = await pool.query(
-		"INSERT INTO stores (name, location, date_of_founding, author) VALUES ($1, $2, $3, $4) RETURNING *",
+		"INSERT INTO stores (name, location, date_of_founding, author_id) VALUES ($1, $2, $3, $4) RETURNING *",
 		[name, location, date_of_founding, user.rows[0].id]
 	  );
 	  const createdStore: Stores = result.rows[0];
@@ -128,7 +128,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
  
 	const user = await tokenUser(decodedToken)
 	const breweryUserResult = await storeUser(storeID)
-	if (user.rows[0].id !== breweryUserResult.rows[0].author || user.rows[0].role !== "admin") {
+	if (user.rows[0].id !== breweryUserResult.rows[0].author_id || user.rows[0].role !== "admin") {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
 	try {
@@ -157,7 +157,7 @@ router.put("/:id", async (req: Request, res: Response) => {
 	const user = await tokenUser(decodedToken)
 	const storeuser = await storeUser(storeID)
  
-	if (user.rows[0].id !== storeuser.rows[0].author || user.rows[0].role !== "admin") {
+	if (user.rows[0].id !== storeuser.rows[0].author_id || user.rows[0].role !== "admin") {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
  
@@ -269,7 +269,7 @@ router.post("/menu/", async (req: Request, res: Response) => {
 	) 
 	try {
 	  const result = await pool.query(
-		"INSERT INTO stores (storeid, beerid, size, price, author) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+		"INSERT INTO stores (storeid, beerid, size, price, author_id) VALUES ($1, $2, $3, $4, $5) RETURNING *",
 		[storeid, beerid, size, price, user.rows[0].id]
 	  );
 	  const createdStore: Stores = result.rows[0];
@@ -293,7 +293,7 @@ router.delete("/menu/:id", async (req: Request, res: Response) => {
  
 	const user = await tokenUser(decodedToken)
 	const breweryUserResult = await storeUser(storeID)
-	if (user.rows[0].id !== breweryUserResult.rows[0].author || user.rows[0].role !== "admin") {
+	if (user.rows[0].id !== breweryUserResult.rows[0].author_id || user.rows[0].role !== "admin") {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
 	try {
@@ -322,7 +322,7 @@ router.put("/menu/:id", async (req: Request, res: Response) => {
 	const user = await tokenUser(decodedToken)
 	const storeuser = await storeUser(storeID)
  
-	if (user.rows[0].id !== storeuser.rows[0].author || user.rows[0].role !== "admin") {
+	if (user.rows[0].id !== storeuser.rows[0].author_id || user.rows[0].role !== "admin") {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
  
