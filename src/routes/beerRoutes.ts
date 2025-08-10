@@ -227,6 +227,8 @@ router.get("/review/:id", async (req: Request, res: Response) => {
 			beer_reviews.beer_id,
 			beer_reviews.review,
 			beer_reviews.rating,
+			beer_reviews.date_created,
+			beer_reviews.date_updated,
 			users.display_name AS author_display_name
 			FROM beer_reviews
 			JOIN users ON beer_reviews.author_id = users.id
