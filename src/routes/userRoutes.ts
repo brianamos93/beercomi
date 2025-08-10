@@ -14,6 +14,49 @@ interface CustomRequest extends Request {
   files?: Express.Multer.File[]; // For multiple file uploads (array of files)
 }
 
+const getRecentActivityOneUser = async (userId: string) => {
+	try {
+		const tableQuery = `
+			SELECT table_name
+			FROM information_schema.columns
+			WHERE table_schema = 'public'
+			AND column_name IN ('date_updated', 'author_id')
+			GROUP BY table_name
+			HAVING COUNT(DISTINCT column_name) = 2;`
+
+		const tableRes = await pool.query(tableQuery)
+		const tables = tableRes.rows.map(row => row.table_name)
+		console.log(tables)
+
+		if (tables.length === 0) {
+			return []
+		}
+
+		let sql = `
+		SELECT *
+		FROM (
+			${tables.map(
+			table => `
+				SELECT 
+				'${table}' AS table_name,
+				${table}.id::TEXT AS id,
+				${table}.date_updated::TIMESTAMP AS date_updated
+				FROM ${table}
+				WHERE author_id = '${userId}'
+			`
+			).join(" UNION ALL ")}
+		) AS combined
+		ORDER BY date_updated DESC
+		LIMIT 10
+`
+		const result = await pool.query(sql)
+		return result.rows
+	} catch (error) {
+		console.log(error)
+		return "Error"	
+	}
+}
+
 const uploadPath = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadPath)) {
   fs.mkdirSync(uploadPath);
@@ -348,5 +391,16 @@ router.put("/verified/:id", async (req: Request, res: Response) => {
 	  res.sendStatus(500).json({ error: "Error updating user" });
 	}
  });
+
+ router.get("/user/:id/recentactivity", async(req: Request, res: Response) => {
+	const userID = req.params.id
+	try {
+		const entries = await getRecentActivityOneUser(userID)
+		res.json(entries)
+	} catch (error) {
+		console.log("Error fetching recent entries:", error)
+		res.status(500).json({ error: "Internal Server Error"})
+	}
+})
 
 export default router
