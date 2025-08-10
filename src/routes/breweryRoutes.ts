@@ -68,13 +68,13 @@ router.get("/:id", async (req: Request, res: Response) => {
 		'description', beers.description,
 		'date_created', beers.date_created,
 		'date_updated', beers.date_updated,
-		'author_id', beers.author,
+		'author_id', beers.author_id,
 		'author_name', beer_authors.display_name)
 	) FILTER (WHERE beers.id IS NOT NULL), '[]') AS beers 
 FROM breweries 
 LEFT JOIN users AS brewery_authors ON breweries.author_id = brewery_authors.id 
 LEFT JOIN beers ON breweries.id = beers.brewery_id 
-LEFT JOIN users AS beer_authors ON beers.author = beer_authors.id
+LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
 WHERE breweries.id = $1 
 GROUP BY breweries.id, brewery_authors.display_name;`, [breweryId])
 		const breweries: Brewery[] = result.rows[0];
