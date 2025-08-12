@@ -229,7 +229,7 @@ router.get("/review/:id", async (req: Request, res: Response) => {
 			beer_reviews.rating,
 			beer_reviews.date_created,
 			beer_reviews.date_updated,
-			users.display_name AS author_display_name,
+			users.display_name AS author_name,
 			beers.name AS beer_name,
 			breweries.name AS brewery_name
 			FROM beer_reviews
