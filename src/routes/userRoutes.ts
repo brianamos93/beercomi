@@ -250,6 +250,20 @@ router.post("/signup", async ( req: Request, res: Response ) => {
 	}
 })
 
+router.get("/user/", async(req: Request, res: Response) => {
+	try {
+		const decodedToken = decodeToken(req)
+		if (!decodedToken.id) {
+	 		return res.status(401).json({ error: 'token invalid'})
+	}
+	const user = await tokenUser(decodedToken)
+	return res.json(user)
+	} catch (error) {
+		res.json({error: "Error"})
+	}
+
+})
+
 router.get("/user/:id", async (req: Request, res: Response ) => {
 	const userID = req.params.id
 	  try {
