@@ -150,7 +150,7 @@ router.post("/profile/img/upload", authenticationHandler, upload.single('image')
 				SET profile_img_url = $1
 				WHERE id = $2
 				RETURNING *;
-				`, [newFileName, userId])
+				`, [uploadFilePathAndFile, userId])
 				res.json({message: "Upload Sucessful"})
 		} catch (error) {
 			res.status(401).json({error: "Error uploading avatar."})
