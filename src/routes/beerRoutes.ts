@@ -1,9 +1,20 @@
 import { Router, Request, Response } from "express";
 import pool from "../utils/db";
 import { tokenUser, decodeToken } from "../utils/userlib"
+const multer = require('multer')
+import fs from 'fs';
+import path from 'path';
+import { FileFilterCallback } from "multer";
+import sharp from "sharp";
+const { authenticationHandler } = require("../utils/middleware");
+
 
 const router = Router();
 
+interface CustomRequest extends Request {
+  file?: Express.Multer.File; // For single file uploads
+  files?: Express.Multer.File[]; // For multiple file uploads (array of files)
+}
 
 interface Beer {
 	id: string;
@@ -28,6 +39,15 @@ interface Review {
 	rating: number
 }
 
+const fileFilter = (_req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
+  const allowedTypes = ['image/jpeg', 'image/png'];
+  if (allowedTypes.includes(file.mimetype)) cb(null, true);
+  else cb(new Error('Only .jpeg and .png files are allowed'));
+};
+
+const upload = multer({ storage: multer.memoryStorage(), fileFilter });
+
+
 async function beerlookup(beerID: String) {
 	return await pool.query("SELECT id FROM beers WHERE id = $1", [beerID]);
   }
@@ -44,6 +64,9 @@ async function beerUser(beerID: String) {
 	return await pool.query("SELECT author_id FROM beer_reviews WHERE id = $1", [reviewID])
  }
 
+async function breweryNameLookup(breweryID: String) {
+	return await pool.query("SELECT name FROM breweries WHERE id = $1", [breweryID]);
+  } 
 
 router.get("/", async (req: Request, res: Response) => {
 	try {
@@ -121,9 +144,24 @@ router.get("/:id", async (req: Request, res: Response) => {
 	}
 })	
 
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", authenticationHandler, upload.single('image'), async (req: Request, res: Response) => {
 	const { name, brewery_id, description, style, ibu, abv, color } = req.body;
 	const decodedToken = decodeToken(req)
+	let uploadFilePathAndFile
+		
+	if (req.file) {
+		const brewery = await breweryNameLookup(brewery_id)
+		const breweryName = brewery.rows[0].name
+		const uploadPath = path.join(__dirname, '..', `uploads/${breweryName}/${name}`);
+		if (!fs.existsSync(uploadPath)) {
+ 			fs.mkdirSync(uploadPath, { recursive: true });
+		}
+		const ext: string = req.file && req.file.originalname ? path.extname(req.file.originalname) : '';
+		const newFileName = `${name}-${Date.now()}${ext}`
+		uploadFilePathAndFile = path.join(uploadPath, newFileName)
+		await sharp(req.file.buffer).resize(200,200).toFile(uploadFilePathAndFile)
+	}
+
 	if (!decodedToken.id) {
 	 return res.status(401).json({ error: 'token invalid'})
 	}
@@ -143,8 +181,8 @@ router.post("/", async (req: Request, res: Response) => {
 		const formatedIbu = Number(ibu)
 		const formatedAbv = Number(abv*10)
 	  const result = await pool.query(
-		"INSERT INTO beers (name, brewery_id, description, style, ibu, abv, color, author_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
-		[name, brewery_id, description, style, formatedIbu, formatedAbv, color, user.rows[0].id]
+		"INSERT INTO beers (name, brewery_id, description, style, ibu, abv, color, author_id, cover_image) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
+		[name, brewery_id, description, style, formatedIbu, formatedAbv, color, user.rows[0].id, uploadFilePathAndFile]
 	  );
 	  const createdBeer: Beer = result.rows[0];
 	  res.status(201).json(createdBeer);
