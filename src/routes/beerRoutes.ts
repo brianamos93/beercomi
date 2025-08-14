@@ -144,7 +144,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 	}
 })	
 
-router.post("/", authenticationHandler, upload.single('image'), async (req: Request, res: Response) => {
+router.post("/", authenticationHandler, upload.single('cover_image'), async (req: Request, res: Response) => {
 	const { name, brewery_id, description, style, ibu, abv, color } = req.body;
 	const decodedToken = decodeToken(req)
 	let uploadFilePathAndFile
@@ -157,7 +157,7 @@ router.post("/", authenticationHandler, upload.single('image'), async (req: Requ
  			fs.mkdirSync(uploadPath, { recursive: true });
 		}
 		const ext: string = req.file && req.file.originalname ? path.extname(req.file.originalname) : '';
-		const newFileName = `${name}-${Date.now()}${ext}`
+		const newFileName = `${name}CoverImage-${Date.now()}${ext}`
 		uploadFilePathAndFile = path.join(uploadPath, newFileName)
 		await sharp(req.file.buffer).resize(200,200).toFile(uploadFilePathAndFile)
 	}
