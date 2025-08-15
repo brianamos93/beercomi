@@ -20,13 +20,13 @@ async function brewerylookup(breweryID: String) {
   }
 
 async function breweryUser(breweryID: String) {
-	return await pool.query("SELECT authorid FROM breweries WHERE id = $1", [breweryID]);
+	return await pool.query("SELECT author_id FROM breweries WHERE id = $1", [breweryID]);
   }
 
 
 router.get("/", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT * FROM breweries");
+		const result = await pool.query("SELECT * FROM breweries ORDER BY date_updated DESC");
 		const breweries: Brewery[] = result.rows;
 		res.json(breweries);
 	  } catch (error) {
