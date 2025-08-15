@@ -40,6 +40,11 @@ interface Review {
 }
 
 const fileFilter = (_req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
+  // Reject empty files (size 0 or name 'undefined')
+  if (!file.originalname || file.size === 0 || file.originalname === 'undefined') {
+    // Skip this file, treat as no file uploaded
+    return cb(null, false);
+  }
   const allowedTypes = ['image/jpeg', 'image/png'];
   if (allowedTypes.includes(file.mimetype)) cb(null, true);
   else cb(new Error('Only .jpeg and .png files are allowed'));
@@ -65,7 +70,7 @@ async function beerUser(beerID: String) {
  }
 
 async function breweryLookup(breweryID: String) {
-	return await pool.query("SELECT name, brewery_id, description, ibu, abv, color, style, cover_image FROM breweries WHERE id = $1", [breweryID]);
+	return await pool.query("SELECT name, id, location, date_of_founding, date_created, date_updated, author_id FROM breweries WHERE id = $1", [breweryID]);
   } 
 
 async function beerCoverImageLookup(beerId: String) {
@@ -74,7 +79,7 @@ async function beerCoverImageLookup(beerId: String) {
 
 router.get("/", async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT beers.id, beers.name, beers.brewery_id, breweries.name AS brewery_name, beers.description, beers.style, beers.ibu, beers.abv, beers.color, beers.date_updated, beers.date_created FROM beers LEFT JOIN breweries ON beers.brewery_id = breweries.id");
+		const result = await pool.query("SELECT beers.id, beers.name, beers.brewery_id, breweries.name AS brewery_name, beers.description, beers.style, beers.ibu, beers.abv, beers.color, beers.date_updated, beers.date_created FROM beers LEFT JOIN breweries ON beers.brewery_id = breweries.id ORDER BY beers.date_updated DESC");
 		const beers: Beer[] = result.rows;
 		const modifiedBeers = beers.map((beer) => {
 			return {
@@ -154,7 +159,8 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
 	const decodedToken = decodeToken(req)
 	const brewery = await breweryLookup(brewery_id)
 	const breweryName = brewery.rows[0].name
-	var newFileName
+	var newFileName = null
+	var relativeUploadFilePathAndFile = null
 		
 	if (req.file) {
 
@@ -166,6 +172,7 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
 		newFileName = `${name}CoverImage-${Date.now()}${ext}`
 		const uploadFilePathAndFile = path.join(uploadPath, newFileName)
 		await sharp(req.file.buffer).resize(200,200).toFile(uploadFilePathAndFile)
+		relativeUploadFilePathAndFile = `/upload/${breweryName}/${newFileName}`
 	}
 
 	if (!decodedToken.id) {
@@ -185,7 +192,7 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
 	}
  
 	
-		const relativeUploadFilePathAndFile = `/upload/${breweryName}/${newFileName}`
+		
 		const formatedIbu = Number(ibu)
 		const formatedAbv = Number(abv*10)
 	  const result = await pool.query(
