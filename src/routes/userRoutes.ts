@@ -164,7 +164,7 @@ router.delete("/profile/img", authenticationHandler, async(req: Request, res: Re
     const userId = user.rows[0].id
     const avatardir = user.rows[0].profile_img_url
     if (!avatardir) return res.status(404).json({message: "Avatar Not Found."})
-    const oldFilePath = path.join(uploadPath, avatardir)
+    const oldFilePath = path.join(uploadPath, avatardir) //error?
     if (fs.existsSync(oldFilePath)) {
         fs.unlinkSync(oldFilePath)
         try {
@@ -256,7 +256,8 @@ router.get("/user/", async(req: Request, res: Response) => {
 		if (!decodedToken.id) {
 	 		return res.status(401).json({ error: 'token invalid'})
 	}
-	const user = await tokenUser(decodedToken)
+	const userData = await tokenUser(decodedToken)
+	const user = userData.rows[0]
 	return res.json(user)
 	} catch (error) {
 		res.json({error: "Error"})
