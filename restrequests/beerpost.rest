@@ -1,10 +1,10 @@
 POST http://localhost:3005/beers/ HTTP/1.1
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjNiOGU2MzhlLTU2NmMtNGU5Yy04Y2ZmLWNlYWJjMGEwY2YyNCIsImlhdCI6MTc0MDQ5MDI5OSwiZXhwIjoxNzQwNDkzODk5fQ.ReBCj92fuREaEe-bjp174ye1sbATazCmAxSLgfG2rMw
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkaXNwbGF5X25hbWUiOiJBZG1pblVzZXIiLCJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsInByb2ZpbGVfaW1nX3VybCI6IkFkbWluVXNlci0xNzU0MjI4NDg1NTU0LnBuZyIsImlhdCI6MTc1NTI2MTc5NiwiZXhwIjoxNzU1MjY1Mzk2fQ.tB9fkZNY5E2eJ8Hw_owxoX8sOIFVnNNj7EVePrjE7KY
 
 {
 	"name": "Strawberry Sour",
-	"brewery": "144aed9b-cb5b-4155-a2f6-9f6ebc8833cc",
+	"brewery_id": "144aed9b-cb5b-4155-a2f6-9f6ebc8833cc",
 	"description": "A sweet but sour ale",
 	"style": "Wild Ale",
 	"ibu": "3",
