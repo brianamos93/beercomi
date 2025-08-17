@@ -84,7 +84,7 @@ interface User {
 	introduction: string,
 }
 
-async function userIdGet(userId: string) {
+export async function userIdGet(userId: string) {
 	return await pool.query("SELECT id, role FROM users WHERE id = $1", [userId])
 }
 
@@ -108,16 +108,13 @@ router.post("/login", async (req: Request, res: Response) => {
 		}
 
 		const userForToken = {
-			display_name: user.rows[0].display_name,
-			id: user.rows[0].id,
-			profile_img_url: user.rows[0].profile_img_url
+			id: user.rows[0].id
 		}
 
 		const token = jwt.sign(userForToken,
 			process.env.SECRET,
 			{ expiresIn: 60*60 }
 		)
-		console.log(userForToken)
 		res
 		.status(200)
 		.send({token, userForToken})
