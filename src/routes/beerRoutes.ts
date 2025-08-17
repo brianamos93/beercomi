@@ -33,10 +33,18 @@ interface Beer {
 
 interface Review {
 	id: string;
-	authorid: string;
+	author_id: string;
 	beerid: string;
 	review: string;
 	rating: number
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {id: string};
+    }
+  }
 }
 
 const fileFilter = (_req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
@@ -54,7 +62,7 @@ const upload = multer({ storage: multer.memoryStorage(), fileFilter });
 
 
 async function beerlookup(beerID: String) {
-	return await pool.query("SELECT id FROM beers WHERE id = $1", [beerID]);
+	return await pool.query("SELECT id, name, brewery_id, description, ibu, abv, color, author_id, style, cover_iamge FROM beers WHERE id = $1", [beerID]);
   }
 
 async function beerUser(beerID: String) {
@@ -154,13 +162,15 @@ router.get("/:id", async (req: Request, res: Response) => {
 })	
 
 router.post("/", authenticationHandler, upload.single('cover_image'), async (req: Request, res: Response) => {
-	
 	const { name, brewery_id, description, style, ibu, abv, color } = req.body;
-	const decodedToken = decodeToken(req)
 	const brewery = await breweryLookup(brewery_id)
 	const breweryName = brewery.rows[0].name
 	var newFileName = null
 	var relativeUploadFilePathAndFile = null
+
+	if (!req.user || !req.user.id) {
+	return res.status(401).json({ error: "Unauthorized: user not found" });
+	}
 		
 	if (req.file) {
 
@@ -169,18 +179,14 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
  			fs.mkdirSync(uploadPath, { recursive: true });
 		}
 		const ext: string = req.file && req.file.originalname ? path.extname(req.file.originalname) : '';
-		newFileName = `${name}CoverImage-${Date.now()}${ext}`
+		newFileName = `${name}-CoverImage-${Date.now()}${ext}`
 		const uploadFilePathAndFile = path.join(uploadPath, newFileName)
 		await sharp(req.file.buffer).resize(200,200).toFile(uploadFilePathAndFile)
-		relativeUploadFilePathAndFile = `/upload/${breweryName}/${newFileName}`
-	}
-
-	if (!decodedToken.id) {
-	 return res.status(401).json({ error: 'token invalid'})
+		relativeUploadFilePathAndFile = `/uploads/${breweryName}/${name}/${newFileName}`
 	}
 	try {
 	const user = await pool.query(
-	 "SELECT * FROM users WHERE id = $1", [decodedToken.id]
+	 "SELECT * FROM users WHERE id = $1", [req.user.id]
 	)
 	if(!user) {
 		return res.status(401).json({ error: 'User not found'})
@@ -193,8 +199,8 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
  
 	
 		
-		const formatedIbu = Number(ibu)
-		const formatedAbv = Number(abv*10)
+	const formatedIbu = Number(ibu)
+	const formatedAbv = Number(abv*10)
 	  const result = await pool.query(
 		"INSERT INTO beers (name, brewery_id, description, style, ibu, abv, color, author_id, cover_image) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
 		[name, brewery_id, description, style, formatedIbu, formatedAbv, color, user.rows[0].id, relativeUploadFilePathAndFile]
@@ -298,7 +304,7 @@ router.put("/:id", async (req: Request, res: Response) => {
 		newFileName = `${name ?? currentBeer.name}-CoverImage-${Date.now()}${ext}`
 		const uploadFilePathAndFile = path.join(uploadPath, newFileName)
 		await sharp(req.file.buffer).resize(200,200).toFile(uploadFilePathAndFile)
-		const relativeUploadFilePathAndFile = `/upload/${breweryName}/${newFileName}`;
+		const relativeUploadFilePathAndFile = `/uploads/${breweryName}/${name}/${newFileName}`;
 		addIfChanged("cover_image", relativeUploadFilePathAndFile);
 	}
 
