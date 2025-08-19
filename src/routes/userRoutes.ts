@@ -57,7 +57,7 @@ const getRecentActivityOneUser = async (userId: string) => {
 	}
 }
 
-const uploadPath = path.join(__dirname, '..', 'uploads');
+const uploadPath = path.join(__dirname, '..', 'uploads', 'users');
 if (!fs.existsSync(uploadPath)) {
   fs.mkdirSync(uploadPath);
 }
@@ -135,19 +135,20 @@ router.post("/profile/img/upload", authenticationHandler, upload.single('image')
 			const newFileName = `${display_name}-${Date.now()}${ext}`
 			const uploadFilePathAndFile = path.join(uploadPath, newFileName)
 			if (avatardir !== null) {
-				const oldFilePath = path.join(uploadPath, avatardir)
+				const oldFilePath = path.join(__dirname, "..", "uploads", avatardir)
 				if (fs.existsSync(oldFilePath)) {
 					fs.unlinkSync(oldFilePath)
 				}
 			}
 			await sharp(req.file.buffer).resize(200,200).toFile(uploadFilePathAndFile)
+			const relativeUploadFilePathAndFile = "/uploads/" + newFileName
 			const userId = user.rows[0].id
 			await pool.query(`
 				UPDATE users
 				SET profile_img_url = $1
 				WHERE id = $2
 				RETURNING *;
-				`, [uploadFilePathAndFile, userId])
+				`, [relativeUploadFilePathAndFile, userId])
 				res.json({message: "Upload Sucessful"})
 		} catch (error) {
 			res.status(401).json({error: "Error uploading avatar."})
@@ -161,7 +162,7 @@ router.delete("/profile/img", authenticationHandler, async(req: Request, res: Re
     const userId = user.rows[0].id
     const avatardir = user.rows[0].profile_img_url
     if (!avatardir) return res.status(404).json({message: "Avatar Not Found."})
-    const oldFilePath = path.join(uploadPath, avatardir) //error?
+    const oldFilePath = path.join(__dirname, "..", "uploads", avatardir)
     if (fs.existsSync(oldFilePath)) {
         fs.unlinkSync(oldFilePath)
         try {
@@ -266,7 +267,7 @@ router.get("/user/:id", async (req: Request, res: Response ) => {
 	const userID = req.params.id
 	  try {
 		const result = await pool.query("SELECT users.id, users.display_name, users.profile_img_url, users.present_location, users.introduction, users.role FROM users WHERE users.id = $1 ", [userID]);
-		const user: User[] = result.rows[0];
+		const user: User = result.rows[0];
 		res.json(user);
 	  } catch (error) {
 		console.error("Error fetching user", error);
@@ -331,7 +332,6 @@ router.put("/user/:id/role", async (req: Request, res: Response) => {
 	if (!decodedToken.id) {
 	 return res.status(401).json({ error: 'token invalid'})
 	}
-	const user = await tokenUser(decodedToken)
 	const userDataResult = await userIdGet(userID)
 	if (userDataResult.rows[0].role !== "admin") {
 		return res.status(400).json({ error: "User not authorized" })
