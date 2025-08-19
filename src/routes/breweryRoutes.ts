@@ -145,6 +145,12 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
 	if (typeof name !== "string" || name.trim() === "") {
 	  return res.status(400).json({ error: "Invalid brewery name data" });
 	}
+	if (typeof location !== "string" || location.trim() === "") {
+	  return res.status(400).json({ error: "Invalid brewery location data" });
+	}
+	if (typeof date_of_founding !== "string" || date_of_founding.trim() === "") {
+	  return res.status(400).json({ error: "Invalid date_of_founding data" });
+	}
 	if (req.file) {
 	
 		const uploadPath = path.join(__dirname, '..', `uploads/${name}`);
@@ -155,7 +161,7 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
 		newFileName = `${name}CoverImage-${Date.now()}${ext}`
 		const uploadFilePathAndFile = path.join(uploadPath, newFileName)
 		await sharp(req.file.buffer).resize(200,200).toFile(uploadFilePathAndFile)
-		relativeUploadFilePathAndFile = `/upload/${name}/${newFileName}`
+		relativeUploadFilePathAndFile = `/uploads/${name}/${newFileName}`
 		}
 	try {
 	  const result = await pool.query(
@@ -170,10 +176,10 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
 	}
   });
  
- router.put("/:id", authenticationHandler, async (req: Request, res: Response) => {
+ router.put("/:id", authenticationHandler, upload.single('cover_image'), async (req: Request, res: Response) => {
 	const breweryID = req.params.id
 	const { name, location, date_of_founding } = req.body;
-	var newFileName
+	console.log(req)
 
 	const brewerycheck = await brewerylookup(breweryID)
  
@@ -194,28 +200,13 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
 	const userData = await userIdGet(req.user.id)
 	const userRole = userData.rows[0].role
  
-	if (req.user.id !== breweryuser.rows[0].author_id || userRole !== 'admin') {
+	if (req.user.id !== breweryuser.rows[0].author_id && userRole !== 'admin') {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
 
 	const currentBrewery = brewerycheck.rows[0] 
-	const updates: string[] = [];
-	const values: any[] = [];
-	let i = 1; // parameter index for $1, $2, etc.
+	var relativeUploadFilePathAndFile
 
-	const addIfChanged = (column: string, newValue: any, transform?: (v: any) => any) => {
-		const oldValue = currentBrewery[column];
-		const processed = transform ? transform(newValue) : newValue;
-		if (newValue !== undefined && processed !== oldValue) {
-			updates.push(`${column} = $${i}`);
-			values.push(processed);
-			i++;
-		}
-	};
-
-	addIfChanged("name", name);
-	addIfChanged("location", location);
-	addIfChanged("date_of_founding", date_of_founding);
 
 
 	if (req.file) {
@@ -225,22 +216,18 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
 			fs.mkdirSync(uploadPath, { recursive: true });
 		}
 		const ext: string = req.file && req.file.originalname ? path.extname(req.file.originalname) : '';
-		newFileName = `${name}-CoverImage-${Date.now()}${ext}`
+		const newFileName = `${name}-CoverImage-${Date.now()}${ext}`
 		const uploadFilePathAndFile = path.join(uploadPath, newFileName)
 		await sharp(req.file.buffer).resize(200,200).toFile(uploadFilePathAndFile)
-		const relativeUploadFilePathAndFile = `/upload/${name}/${newFileName}`;
-		addIfChanged("cover_image", relativeUploadFilePathAndFile);		}
+		relativeUploadFilePathAndFile = `/uploads/${name}/${newFileName}`;
+	}
  
 	try {
-	  await pool.query("UPDATE breweries SET name = $1, location = $2, date_of_founding = $3 WHERE id = $4", [
-		name,
-		location,
-		date_of_founding,
-		breweryID,
-	  ]);
-	  res.status(200).json({ messagee: "Brewery updated successfully"})
+	  await pool.query("UPDATE breweries SET name = $1, location = $2, date_of_founding = $3, cover_image = $4 WHERE id = $5", [name, location, date_of_founding, relativeUploadFilePathAndFile, breweryID]);
+		res.status(200).json({ message: "Brewery updated successfully" });
 	} catch (error) {
-	  res.status(500).json({ error: "Error updating brewery"});
+	  console.error("PUT /:id error:", error);
+	  res.status(500).json({ error: "Error" });
 	}
  
  
@@ -260,8 +247,10 @@ router.delete("/:id", authenticationHandler, async (req: Request, res: Response)
 		return res.status(401).json({ error: "Unauthorized: user not found" });
 	}
 	const breweryUserResult = await breweryUser(breweryID)
+	const userData = await userIdGet(req.user.id)
+	const userRole = userData.rows[0].role
 
-	if (req.user.id !== breweryUserResult.rows[0].authorid) {
+	if (req.user.id !== breweryUserResult.rows[0].authorid && userRole !== 'admin') {
 		return res.status(400).json({ error: "User not authorized" })
 	}
 
