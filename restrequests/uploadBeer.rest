@@ -1,0 +1,47 @@
+### upload
+POST http://localhost:3005/beers
+Content-Type: multipart/form-data; boundary=MyBoundary
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsImlhdCI6MTc1NTY2NDU4NiwiZXhwIjoxNzU1NjY4MTg2fQ.n-LcHkRFcvISjoY7GI4WO327CnlCQGbVktVKSCcOca8
+
+--MyBoundary
+Content-Disposition: form-data; name="name"
+
+This is a test
+
+--MyBoundary
+Content-Disposition: form-data; name="brewery_id"
+
+b648a07e-d96b-4d75-905e-fb7db09ed380
+
+--MyBoundary
+Content-Disposition: form-data; name="description"
+
+This is another test to see what works.
+
+--MyBoundary
+Content-Disposition: form-data; name="style"
+
+Lager
+
+--MyBoundary
+Content-Disposition: form-data; name="ibu"
+
+45
+
+--MyBoundary
+Content-Disposition: form-data; name="abv"
+
+4
+
+--MyBoundary
+Content-Disposition: form-data; name="color"
+
+Yellow
+
+--MyBoundary
+Content-Disposition: form-data; name="cover_image"; filename="yebisu24_can_350.png"
+Content-Type: image/png
+
+< ../../../Pictures/yebisu24_can_350.png
+
+--MyBoundary--

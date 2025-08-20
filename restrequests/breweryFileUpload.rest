@@ -1,0 +1,26 @@
+### upload
+PUT http://localhost:3005/breweries/144aed9b-cb5b-4155-a2f6-9f6ebc8833cc
+Content-Type: multipart/form-data; boundary=MyBoundary
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsImlhdCI6MTc1NTU5OTk3NSwiZXhwIjoxNzU1NjAzNTc1fQ.9E5jfdt_zKixXlHux3HxlKO0Kqbk0-M4kdqhUzHz9qk
+
+--MyBoundary
+Content-Disposition: form-data; name="name";
+
+This is a test
+
+--MyBoundary
+Content-Disposition: form-data; name="location";
+
+Chicago
+
+--MyBoundary
+Content-Disposition: form-data; name="date_of_founding";
+
+2567
+
+--MyBoundary
+Content-Disposition: form-data; name="cover_image"; filename="beer.png"
+Content-Type: image/png
+
+< c:\Users\ブライアン\Pictures\yebisu24_can_350.png
+--MyBoundary--
