@@ -1,5 +1,7 @@
 import { Router, Request, Response } from "express";
 import pool from "../utils/db";
+const express = require('express')
+
 
 const router = Router();
 
@@ -29,7 +31,7 @@ const getRecentActivity = async () => {
 	}
 }
 
-router.get("/", async (req:Request, res:Response) => {
+router.get("/", express.json(), async (req:Request, res:Response) => {
 	try {
 		const entries = await getRecentActivity()
 		res.json(entries)
