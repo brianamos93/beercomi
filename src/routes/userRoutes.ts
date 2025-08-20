@@ -8,6 +8,8 @@ import fs from 'fs';
 import path from 'path';
 import { FileFilterCallback } from "multer";
 import sharp from "sharp";
+const express = require('express')
+
 const { authenticationHandler } = require("../utils/middleware");
 interface CustomRequest extends Request {
   file?: Express.Multer.File; // For single file uploads
@@ -88,7 +90,7 @@ export async function userIdGet(userId: string) {
 	return await pool.query("SELECT id, role FROM users WHERE id = $1", [userId])
 }
 
-router.post("/login", async (req: Request, res: Response) => {
+router.post("/login", express.json(), async (req: Request, res: Response) => {
 	const { email, password } = req.body
 	try {
 		const user = await pool.query("SELECT * FROM users WHERE email = $1", [email])
@@ -188,7 +190,7 @@ router.delete("/profile/img", authenticationHandler, async(req: Request, res: Re
     }
 })
 
-router.get("/users", async (req: Request, res: Response) => {
+router.get("/users", express.json(), async (req: Request, res: Response) => {
 	try {
 		const result = await pool.query("SELECT users.id, users.display_name, users.role, users.profile_img_url, users.present_location, users.introduction FROM users")
 		const users: User[] = result.rows
@@ -199,7 +201,7 @@ router.get("/users", async (req: Request, res: Response) => {
 	}
 })
 
-router.get("/users/beers", async (req: Request, res: Response) => {
+router.get("/users/beers", express.json(), async (req: Request, res: Response) => {
 	try {
 		const result = await pool.query("SELECT users.id, users.display_name, users.profile_img_url, beers.name, beers.description FROM users INNER JOIN beers ON users.id = beers.author")
 		const users: User[] = result.rows
@@ -210,7 +212,7 @@ router.get("/users/beers", async (req: Request, res: Response) => {
 	}
 })
 
-router.get("/users/breweries", async (req: Request, res: Response) => {
+router.get("/users/breweries", express.json(), async (req: Request, res: Response) => {
 	try {
 		const result = await pool.query("SELECT users.id, users.display_name, users.profile_img_url, breweries.name, breweries.description FROM users INNER JOIN breweries ON users.id = brewery.author")
 		const users: User[] = result.rows
@@ -221,7 +223,7 @@ router.get("/users/breweries", async (req: Request, res: Response) => {
 	}
 })
 
-router.post("/signup", async ( req: Request, res: Response ) => {
+router.post("/signup", express.json(), async ( req: Request, res: Response ) => {
 	const { display_name, email, password } = req.body
 
 	const saltRounds = 10
@@ -248,7 +250,7 @@ router.post("/signup", async ( req: Request, res: Response ) => {
 	}
 })
 
-router.get("/user/", async(req: Request, res: Response) => {
+router.get("/user/", express.json(), async(req: Request, res: Response) => {
 	try {
 		const decodedToken = decodeToken(req)
 		if (!decodedToken.id) {
@@ -263,7 +265,7 @@ router.get("/user/", async(req: Request, res: Response) => {
 
 })
 
-router.get("/user/:id", async (req: Request, res: Response ) => {
+router.get("/user/:id", express.json(), async (req: Request, res: Response ) => {
 	const userID = req.params.id
 	  try {
 		const result = await pool.query("SELECT users.id, users.display_name, users.profile_img_url, users.present_location, users.introduction, users.role FROM users WHERE users.id = $1 ", [userID]);
@@ -275,7 +277,7 @@ router.get("/user/:id", async (req: Request, res: Response ) => {
 	  }
 })
 
-router.delete("/user/:id", async (req: Request, res: Response) => {
+router.delete("/user/:id", express.json(), async (req: Request, res: Response) => {
 	const userID = req.params.id
 	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
@@ -295,7 +297,7 @@ router.delete("/user/:id", async (req: Request, res: Response) => {
 	}
   });
 
-router.put("/user/:id", async (req: Request, res: Response) => {
+router.put("/user/:id", express.json(), async (req: Request, res: Response) => {
 	const userID = req.params.id
 	const { password } = req.body;
 
@@ -324,7 +326,7 @@ router.put("/user/:id", async (req: Request, res: Response) => {
 	}
 });
 
-router.put("/user/:id/role", async (req: Request, res: Response) => {
+router.put("/user/:id/role", express.json(), async (req: Request, res: Response) => {
 	const userID = req.params.id
 	const { role } = req.body;
 
@@ -349,7 +351,7 @@ router.put("/user/:id/role", async (req: Request, res: Response) => {
 	}
 });
 
-router.put("/verified/:id", async (req: Request, res: Response) => {
+router.put("/verified/:id", express.json(), async (req: Request, res: Response) => {
 	const userID = req.params.id
 	const usercheck = await userIdGet(userID)
  
@@ -377,7 +379,7 @@ router.put("/verified/:id", async (req: Request, res: Response) => {
  });
 
 
- router.put("/unverified/:id", async (req: Request, res: Response) => {
+ router.put("/unverified/:id", express.json(), async (req: Request, res: Response) => {
 	const userID = req.params.id
 	const usercheck = await userIdGet(userID)
  
@@ -404,7 +406,7 @@ router.put("/verified/:id", async (req: Request, res: Response) => {
 	}
  });
 
- router.get("/user/:id/recentactivity", async(req: Request, res: Response) => {
+ router.get("/user/:id/recentactivity", express.json(), async(req: Request, res: Response) => {
 	const userID = req.params.id
 	try {
 		const entries = await getRecentActivityOneUser(userID)

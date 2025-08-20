@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import pool from "../utils/db";
-import { tokenUser, decodeToken } from "../utils/userlib";
+import { decodeToken } from "../utils/userlib";
 import multer from "multer";
 import fs from 'fs';
 import path from 'path';
@@ -8,6 +8,8 @@ import { FileFilterCallback } from "multer";
 import sharp from "sharp";
 import { userIdGet } from "./userRoutes";
 const { authenticationHandler } = require("../utils/middleware");
+const express = require('express')
+
 
 
 const router = Router();
@@ -67,7 +69,7 @@ async function breweryCoverImageLookup(breweryID: String) {
   }
 
 
-router.get("/", async (req: Request, res: Response) => {
+router.get("/", express.json(), async (req: Request, res: Response) => {
 	try {
 		const result = await pool.query("SELECT * FROM breweries ORDER BY date_updated DESC");
 		const breweries: Brewery[] = result.rows;
@@ -78,7 +80,7 @@ router.get("/", async (req: Request, res: Response) => {
 	  }
 	});
 
-router.get("/list", async (req: Request, res: Response) => {
+router.get("/list", express.json(), async (req: Request, res: Response) => {
 	try {
 		const result = await pool.query("SELECT id FROM breweries");
 		const breweries: Brewery[] = result.rows;
@@ -89,7 +91,7 @@ router.get("/list", async (req: Request, res: Response) => {
 		}
 	});	
 
-router.get("/:id", async (req: Request, res: Response) => {
+router.get("/:id", express.json(), async (req: Request, res: Response) => {
 	const breweryId = req.params.id
 	try {
 		const result = await pool.query(`SELECT 
@@ -203,11 +205,7 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
 	if (req.user.id !== breweryuser.rows[0].author_id && userRole !== 'admin') {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
-
-	const currentBrewery = brewerycheck.rows[0] 
 	var relativeUploadFilePathAndFile
-
-
 
 	if (req.file) {
 	
@@ -233,7 +231,7 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
  
  }); 
 
-router.delete("/:id", authenticationHandler, async (req: Request, res: Response) => {
+router.delete("/:id", express.json(), authenticationHandler, async (req: Request, res: Response) => {
 	const breweryID = req.params.id
 	const brewerycheck = await brewerylookup(breweryID)
 	if (brewerycheck.rowCount == 0) {

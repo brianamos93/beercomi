@@ -1,9 +1,11 @@
 import { Router, Request, Response } from "express";
 import pool from "../utils/db";
 const router = Router();
+const express = require('express')
 
 
-router.get("/", async(req:Request, res:Response) => {
+
+router.get("/", express.json(), async(req:Request, res:Response) => {
 	const { q, limit, offset } = req.query
 	try {
 		const searchResults = await pool.query(`

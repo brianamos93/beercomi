@@ -1,6 +1,8 @@
 import { Router, Request, Response } from "express";
 import pool from "../utils/db";
 import { tokenUser, decodeToken } from "../utils/userlib";
+const express = require('express')
+
 
 const router = Router();
 
@@ -35,7 +37,7 @@ async function storeUser(storeID: String) {
 	return await pool.query("SELECT author_id FROM breweries WHERE id = $1", [storeID]);
   }
 
-router.get("/", async (req: Request, res: Response) => {
+router.get("/", express.json(), async (req: Request, res: Response) => {
 	try {
 		const result = await pool.query("SELECT * FROM stores WHERE verified = TRUE");
 		const stores: Stores[] = result.rows;
@@ -46,7 +48,7 @@ router.get("/", async (req: Request, res: Response) => {
 		}
 	});
 	
-router.get("/all", async (req: Request, res: Response) => {
+router.get("/all", express.json(), async (req: Request, res: Response) => {
 	try {
 		const result = await pool.query("SELECT * FROM stores");
 		const stores: Stores[] = result.rows;
@@ -56,7 +58,7 @@ router.get("/all", async (req: Request, res: Response) => {
 		res.status(500).json({ error: "Error fetching stores" });
 		}
 	});
-router.get("/:id", async (req: Request, res: Response) => {
+router.get("/:id", express.json(), async (req: Request, res: Response) => {
 	const storeId = req.params.id
 	try {
 		const result = await pool.query(`SELECT 
@@ -86,7 +88,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 	}
 })	
 
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", express.json(), async (req: Request, res: Response) => {
 	const { name, location, date_of_founding } = req.body;
 	const decodedToken = decodeToken(req)
 	//const decodedToken = jwt.verify(getTokenFrom(req), process.env.SECRET)
@@ -115,7 +117,7 @@ router.post("/", async (req: Request, res: Response) => {
 	}
   });
 
-router.delete("/:id", async (req: Request, res: Response) => {
+router.delete("/:id", express.json(), async (req: Request, res: Response) => {
 	const storeID = req.params.id
 	const storecheck = await storelookup(storeID)
 	if (storecheck.rowCount == 0) {
@@ -140,7 +142,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 	}
   }); 
 
-router.put("/:id", async (req: Request, res: Response) => {
+router.put("/:id", express.json(), async (req: Request, res: Response) => {
 	const storeID = req.params.id
 	const { name, location, date_of_founding } = req.body;
 	const storecheck = await storelookup(storeID)
@@ -179,7 +181,7 @@ router.put("/:id", async (req: Request, res: Response) => {
 	}
  });
 
-router.put("/verified/:id", async (req: Request, res: Response) => {
+router.put("/verified/:id", express.json(), async (req: Request, res: Response) => {
 	const storeID = req.params.id
 	const storecheck = await storelookup(storeID)
  
@@ -206,7 +208,7 @@ router.put("/verified/:id", async (req: Request, res: Response) => {
 	}
  });
 
-router.put("/unverified/:id", async (req: Request, res: Response) => {
+router.put("/unverified/:id", express.json(), async (req: Request, res: Response) => {
 	const storeID = req.params.id
 	const storecheck = await storelookup(storeID)
  
@@ -233,7 +235,7 @@ router.put("/unverified/:id", async (req: Request, res: Response) => {
 	}
  });
 //per store menu query
-router.get("/:id/menu", async (req: Request, res: Response) => {
+router.get("/:id/menu", express.json(), async (req: Request, res: Response) => {
 	const storeId = req.params.id
 	try {
 		const result = await pool.query(`SELECT menu.id, store_id, size, price, beer_id, beer_name, brewery, style, abv, ibu, color FROM (
@@ -258,7 +260,7 @@ router.get("/:id/menu", async (req: Request, res: Response) => {
 	}
 })	
 //menu post
-router.post("/menu/", async (req: Request, res: Response) => {
+router.post("/menu/", express.json(), async (req: Request, res: Response) => {
 	const { storeid, beerid, size, price } = req.body;
 	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
@@ -280,7 +282,7 @@ router.post("/menu/", async (req: Request, res: Response) => {
 	}
   });
 //menu delete
-router.delete("/menu/:id", async (req: Request, res: Response) => {
+router.delete("/menu/:id", express.json(), async (req: Request, res: Response) => {
 	const storeID = req.params.id
 	const storecheck = await storelookup(storeID)
 	if (storecheck.rowCount == 0) {
@@ -305,7 +307,7 @@ router.delete("/menu/:id", async (req: Request, res: Response) => {
 	}
   }); 
 //menu put
-router.put("/menu/:id", async (req: Request, res: Response) => {
+router.put("/menu/:id", express.json(), async (req: Request, res: Response) => {
 	const storeID = req.params.id
 	const { name, brewery, description, ibu, abv, color } = req.body;
 	const storecheck = await storelookup(storeID)

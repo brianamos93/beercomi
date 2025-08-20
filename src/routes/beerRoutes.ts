@@ -7,6 +7,8 @@ import path from 'path';
 import { FileFilterCallback } from "multer";
 import sharp from "sharp";
 const { authenticationHandler } = require("../utils/middleware");
+const express = require('express')
+
 
 
 const router = Router();
@@ -26,6 +28,7 @@ interface Beer {
 	abv: number;
 	color: string;
 	author_id: string;
+	cover_image: string;
 	date_created: Date;
 	date_updated: Date
  
@@ -85,14 +88,14 @@ async function beerCoverImageLookup(beerId: String) {
 	return await pool.query("SELECT cover_image FROM beers WHERE id = $1", [beerId])
 }
 
-router.get("/", async (req: Request, res: Response) => {
+router.get("/", express.json(), async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT beers.id, beers.name, beers.brewery_id, breweries.name AS brewery_name, beers.description, beers.style, beers.ibu, beers.abv, beers.color, beers.date_updated, beers.date_created FROM beers LEFT JOIN breweries ON beers.brewery_id = breweries.id ORDER BY beers.date_updated DESC");
+		const result = await pool.query("SELECT beers.id, beers.name, beers.brewery_id, breweries.name AS brewery_name, beers.description, beers.style, beers.ibu, beers.abv, beers.color, beers.cover_image, beers.date_updated, beers.date_created FROM beers LEFT JOIN breweries ON beers.brewery_id = breweries.id ORDER BY beers.date_updated DESC");
 		const beers: Beer[] = result.rows;
 		const modifiedBeers = beers.map((beer) => {
 			return {
 				...beer,
-				abv: beer.abv / 10
+				abv: beer.abv / 10,
 			}
 		})
 		res.json(modifiedBeers);
@@ -103,7 +106,7 @@ router.get("/", async (req: Request, res: Response) => {
 	});
 
 
-router.get("/list", async (req: Request, res: Response) => {
+router.get("/list", express.json(), async (req: Request, res: Response) => {
 	try {
 		const result = await pool.query("SELECT id FROM beers");
 		const beers: Beer[] = result.rows;
@@ -114,7 +117,7 @@ router.get("/list", async (req: Request, res: Response) => {
 		}
 	});
 
-router.get("/:id", async (req: Request, res: Response) => {
+router.get("/:id", express.json(), async (req: Request, res: Response) => {
 	const beerId = req.params.id
 	try {
 		const result = await pool.query(`SELECT 
@@ -162,7 +165,13 @@ router.get("/:id", async (req: Request, res: Response) => {
 })	
 
 router.post("/", authenticationHandler, upload.single('cover_image'), async (req: Request, res: Response) => {
+	for (const key in req.body) {
+	if (typeof req.body[key] === "string") {
+		req.body[key] = req.body[key].trim();
+	}
+	}
 	const { name, brewery_id, description, style, ibu, abv, color } = req.body;
+	const trimmedBrewery_id = req.body.brewery_id.trim();
 	const brewery = await breweryLookup(brewery_id)
 	const breweryName = brewery.rows[0].name
 	var newFileName = null
@@ -203,7 +212,7 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
 	const formatedAbv = Number(abv*10)
 	  const result = await pool.query(
 		"INSERT INTO beers (name, brewery_id, description, style, ibu, abv, color, author_id, cover_image) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
-		[name, brewery_id, description, style, formatedIbu, formatedAbv, color, user.rows[0].id, relativeUploadFilePathAndFile]
+		[name, trimmedBrewery_id, description, style, formatedIbu, formatedAbv, color, user.rows[0].id, relativeUploadFilePathAndFile]
 	  );
 	  const createdBeer: Beer = result.rows[0];
 	  res.status(201).json(createdBeer);
@@ -213,7 +222,7 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
 	}
   });
 
-router.delete("/:id", async (req: Request, res: Response) => {
+router.delete("/:id", express.json(), async (req: Request, res: Response) => {
 	const beerID = req.params.id
 	const beercheck = await beerlookup(beerID)
 	if (beercheck.rowCount == 0) {
@@ -231,8 +240,9 @@ router.delete("/:id", async (req: Request, res: Response) => {
 
 	const beerCoverImageRes = await beerCoverImageLookup(beerID)
 	const coverImagePathAndFile = beerCoverImageRes.rows[0].cover_image
-	if(fs.existsSync(coverImagePathAndFile)) {
-		fs.unlinkSync(coverImagePathAndFile)
+	const filePath = path.join(__dirname, '..', coverImagePathAndFile)
+	if(fs.existsSync(filePath)) {
+		fs.unlinkSync(filePath)
 		}
 		
 	try {
@@ -244,7 +254,7 @@ router.delete("/:id", async (req: Request, res: Response) => {
 	}
   }); 
 
-router.put("/:id", async (req: Request, res: Response) => {
+router.put("/:id", express.json(), async (req: Request, res: Response) => {
 	const beerID = req.params.id
 	const { name, brewery_id, description, style, ibu, abv, color } = req.body;
 	const beercheck = await beerlookup(beerID)
@@ -323,7 +333,7 @@ router.put("/:id", async (req: Request, res: Response) => {
 	}
  });
 
-router.get("/review/:id", async (req: Request, res: Response) => {
+router.get("/review/:id", express.json(), async (req: Request, res: Response) => {
 	const reviewId = req.params.id
 	try {
 		const result = await pool.query(`SELECT
@@ -354,7 +364,7 @@ router.get("/review/:id", async (req: Request, res: Response) => {
 })
  
 //create new review
- router.post("/review/", async (req: Request, res: Response) => {
+ router.post("/review/", express.json(), async (req: Request, res: Response) => {
 	const { rating, review, beer } = req.body;
 	const decodedToken = decodeToken(req)
 	if (!decodedToken.id) {
@@ -377,7 +387,7 @@ router.get("/review/:id", async (req: Request, res: Response) => {
 	}
   });
 //update review
-router.put("/review/:id", async (req: Request, res: Response) => {
+router.put("/review/:id", express.json(), async (req: Request, res: Response) => {
 	const reviewID = req.params.id
 	const { rating, review, beer } = req.body;
 	const reviewcheck = await reviewLookup(reviewID)
@@ -416,7 +426,7 @@ router.put("/review/:id", async (req: Request, res: Response) => {
 	}
  });
 //delete review
-router.delete("/review/:id", async (req: Request, res: Response) => {
+router.delete("/review/:id", express.json(), async (req: Request, res: Response) => {
 	const reviewID = req.params.id
 	const reviewcheck = await reviewLookup(reviewID)
 	if (reviewcheck.rowCount == 0) {
