@@ -1,6 +1,6 @@
 PUT http://localhost:3005/breweries/144aed9b-cb5b-4155-a2f6-9f6ebc8833cc HTTP/1.1
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkaXNwbGF5X25hbWUiOiJBZG1pblVzZXIiLCJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsImlhdCI6MTc1MTgxMTI4NiwiZXhwIjoxNzUxODE0ODg2fQ.Xs8yzrGoPSGVp9nMBUrRZMRW2vizcXGpLTTkCfNNfzQ
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsImlhdCI6MTc1NTU5OTk3NSwiZXhwIjoxNzU1NjAzNTc1fQ.9E5jfdt_zKixXlHux3HxlKO0Kqbk0-M4kdqhUzHz9qk
 
 {
 	"name": "Testeter",
