@@ -98,7 +98,8 @@ router.get("/:id", express.json(), async (req: Request, res: Response) => {
 	breweries.id, 
 	breweries.name, 
 	breweries.location, 
-	breweries.date_of_founding, 
+	breweries.date_of_founding,
+	breweries.cover_image, 
 	breweries.date_created, 
 	breweries.date_updated, 
 	brewery_authors.display_name, 
@@ -111,6 +112,7 @@ router.get("/:id", express.json(), async (req: Request, res: Response) => {
 		'abv', beers.abv,
 		'color', beers.color,
 		'description', beers.description,
+		'cover_image', beers.cover_image,
 		'date_created', beers.date_created,
 		'date_updated', beers.date_updated,
 		'author_id', beers.author_id,
@@ -181,7 +183,6 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
  router.put("/:id", authenticationHandler, upload.single('cover_image'), async (req: Request, res: Response) => {
 	const breweryID = req.params.id
 	const { name, location, date_of_founding } = req.body;
-	console.log(req)
 
 	const brewerycheck = await brewerylookup(breweryID)
  
@@ -211,7 +212,7 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
 	
 		const uploadPath = path.join(__dirname, '..', `uploads/${name}`);
 		if (!fs.existsSync(uploadPath)) {
-			fs.mkdirSync(uploadPath, { recursive: true });
+			fs.mkdirSync(uploadPath);
 		}
 		const ext: string = req.file && req.file.originalname ? path.extname(req.file.originalname) : '';
 		const newFileName = `${name}-CoverImage-${Date.now()}${ext}`
