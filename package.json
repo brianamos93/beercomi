@@ -28,7 +28,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon -L --watch '.' --ext js,ts,json --exec ts-node --files ./src/index.ts",
+    "dev": "nodemon -L --watch src --ext js,ts,json --exec ts-node --files ./src/index.ts",
     "build": "tsc",
     "start": "node ./back/index.js",
     "check-types": "tsc --noEmit",
