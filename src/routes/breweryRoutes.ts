@@ -20,13 +20,13 @@ interface CustomRequest extends Request {
 }
 
 interface AuthenticatedRequest extends Request {
-  user: { id: string };
+  user?: {id: string, role: string};
 }
 
 declare global {
   namespace Express {
     interface Request {
-      user?: {id: string};
+      user?: {id: string, role: string};
     }
   }
 }
