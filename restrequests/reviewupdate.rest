@@ -1,10 +1,20 @@
-PUT http://localhost:3005/beers/review/8b8b461f-2e58-484d-9bf1-2d7024904f78 HTTP/1.1
-Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkaXNwbGF5X25hbWUiOiJBZG1pblVzZXIiLCJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsImlhdCI6MTc1Mjc1ODkxNSwiZXhwIjoxNzUyNzYyNTE1fQ.EANTtux9bKURsN19tGGB2ud46xnldkm1nFs6-JVq1VI
+PUT http://localhost:3005/beers/review/40a37340-435c-4bf0-b2c4-494f26d1e4d9 HTTP/1.1
+Content-Type: multipart/form-data; boundary=MyBoundary
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsImlhdCI6MTc1NjcwMTU0NywiZXhwIjoxNzU2NzA1MTQ3fQ.6E1N3fM9PcyPmk7kOCvvt3HQCkJi5q1U3NGhbjMblMA
 
-{
-	"rating": 3,
-  "review": "I am testing the review update functionality again 7/17/2025 at 10:29",
-  "beer": "74aaf98a-4580-4b36-baa9-f70eef7b0f43"
+--MyBoundary
+Content-Disposition: form-data; name="beer_id"
 
-}
+2953f520-c186-4f15-a212-3e8c69ba36b1
+
+--MyBoundary
+Content-Disposition: form-data; name="review"
+
+This is a test review will it make it to the backend?
+
+--MyBoundary
+Content-Disposition: form-data; name="rating"
+
+2
+
+--MyBoundary--

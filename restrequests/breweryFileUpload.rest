@@ -4,9 +4,9 @@ Content-Type: multipart/form-data; boundary=MyBoundary
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsImlhdCI6MTc1NTY5NzI5MiwiZXhwIjoxNzU1NzAwODkyfQ.FGV4QCynee5fsN6GrYcajxG2eXDKDGuZZKL5PhpO7Vk
 
 --MyBoundary
-Content-Disposition: form-data; name="name"
+Content-Disposition: form-data; name="beer_id"
 
-This is a test
+
 
 --MyBoundary
 Content-Disposition: form-data; name="location"
