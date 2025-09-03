@@ -10,7 +10,7 @@ const getRecentActivity = async () => {
 		const tableQuery = `
 		SELECT table_name
 		FROM information_schema.columns
-		WHERE column_name = 'date_updated' AND table_schema = 'public';`
+		WHERE column_name = 'date_updated' AND table_schema = 'public' AND table_name != 'review_photos';`
 
 		const tableRes = await pool.query(tableQuery)
 		const tables = tableRes.rows.map(row => row.table_name)
