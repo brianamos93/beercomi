@@ -1,46 +1,38 @@
 ### upload
 POST http://localhost:3005/beers/review/
 Content-Type: multipart/form-data; boundary=MyBoundary
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsImlhdCI6MTc1NjYxOTk4NiwiZXhwIjoxNzU2NjIzNTg2fQ.iGTsrqEIv3AfM8Av0s6VGVKsqe5Z8kl_8PskjfcjN0k
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsImlhdCI6MTc1ODQ1MzY5NiwiZXhwIjoxNzU4NDU3Mjk2fQ.DLELw-JOMXIrNav9is1Kz3vx_hGKc0cfrMa87p_uqvg
 
 --MyBoundary
 Content-Disposition: form-data; name="beer_id"
 
 2953f520-c186-4f15-a212-3e8c69ba36b1
-
 --MyBoundary
 Content-Disposition: form-data; name="review"
 
-This is a test review will it make it to the backend?
-
+This is a big test
 --MyBoundary
 Content-Disposition: form-data; name="rating"
 
 4
-
 --MyBoundary
 Content-Disposition: form-data; name="photos"; filename="yebisu24_can_350.png"
 Content-Type: image/png
 
 < ../../../Pictures/yebisu24_can_350.png
-
-
 --MyBoundary
 Content-Disposition: form-data; name="photos"; filename="pexels-bohlemedia-1089930.jpg"
 Content-Type: image/jpeg
 
 < ../../../Pictures/pexels-bohlemedia-1089930.jpg
-
 --MyBoundary
 Content-Disposition: form-data; name="photos"; filename="pexels-enginakyurt-1552630.jpg"
 Content-Type: image/jpeg
 
 < ../../../Pictures/pexels-enginakyurt-1552630.jpg
-
 --MyBoundary
 Content-Disposition: form-data; name="photos"; filename="pexels-enginakyurt-1672304.jpg"
 Content-Type: image/jpeg
 
 < ../../../Pictures/pexels-enginakyurt-1672304.jpg
-
 --MyBoundary--

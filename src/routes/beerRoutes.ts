@@ -93,7 +93,7 @@ async function beerCoverImageLookup(beerId: String) {
 }
 
 async function reviewPhotoLookup(reviewId: String) {
-	return await pool.query("SELECT user_id, photo_url FROM review_photos WHERE review_id = $1", [reviewId])
+	return await pool.query("SELECT user_id, photo_url, position FROM review_photos WHERE review_id = $1", [reviewId])
 }
 
 async function photoLookup(photoId: String) {
@@ -133,53 +133,59 @@ router.get("/list", express.json(), async (req: Request, res: Response) => {
 router.get("/:id", express.json(), async (req: Request, res: Response) => {
 	const beerId = req.params.id
 	try {
-		const result = await pool.query(`SELECT 
-			beers.id, 
-			beers.name, 
-			beers.brewery_id, 
-			breweries.name AS brewery_name, 
-			beers.description, 
-			beers.style, 
-			beers.ibu, 
-			beers.abv, 
-			beers.color, 
+		const result = await pool.query(`SELECT
+			beers.id,
+			beers.name,
+			beers.brewery_id,
+			breweries.name AS brewery_name,
+			beers.description,
+			beers.style,
+			beers.ibu,
+			beers.abv,
+			beers.color,
 			beers.author_id,
 			beer_authors.display_name AS author_name,
-			beer_authors.id AS author_id,  -- beer author's user id
-			beers.date_updated, 
+			beer_authors.id AS author_id, -- beer author's user id
+			beers.date_updated,
 			beers.date_created,
-			COALESCE(json_agg(
-				json_build_object(
-					'id', beer_reviews.id,
-					'rating', beer_reviews.rating,
-					'review', beer_reviews.review,
-					'author_id', review_authors.id,
-					'author_name', review_authors.display_name,
-					'photos', COALESCE((
-						SELECT json_agg(
-							json_build_object(
-								'id', review_photos.id,
-								'photo_url', review_photos.photo_url,
-								'date_updated', review_photos.date_updated,
-								'position', review_photos.position
-							)
+			COALESCE(
+				json_agg(
+					json_build_object(
+						'id', beer_reviews.id,
+						'rating', beer_reviews.rating,
+						'review', beer_reviews.review,
+						'author_id', review_authors.id,
+						'author_name', review_authors.display_name,
+						'date_updated', beer_reviews.date_updated,
+						'date_created', beer_reviews.date_created,
+						'photos', COALESCE(
+							(
+								SELECT json_agg(
+									json_build_object(
+										'id', review_photos.id,
+										'photo_url', review_photos.photo_url,
+										'date_updated', review_photos.date_updated,
+										'position', review_photos.position
+									)
+									ORDER BY review_photos.date_created DESC
+								)
+								FROM review_photos
+								WHERE review_photos.review_id = beer_reviews.id
+							),
+							'[]'::json
 						)
-						FROM review_photos
-						WHERE review_photos.review_id = beer_reviews.id
-					), '[]')
-				)
-			) FILTER (WHERE beer_reviews.id IS NOT NULL), '[]') AS reviews
+					)
+					ORDER BY beer_reviews.date_created DESC
+				) FILTER (WHERE beer_reviews.id IS NOT NULL),
+				'[]'::json
+			) AS reviews
 		FROM beers
 		LEFT JOIN breweries ON beers.brewery_id = breweries.id
 		LEFT JOIN beer_reviews ON beers.id = beer_reviews.beer_id
 		LEFT JOIN users AS review_authors ON beer_reviews.author_id = review_authors.id
 		LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
 		WHERE beers.id = $1
-		GROUP BY 
-			beers.id, 
-			breweries.name, 
-			beer_authors.display_name, 
-			beer_authors.id;`, [beerId])
+		GROUP BY beers.id, breweries.name, beer_authors.display_name, beer_authors.id;`, [beerId])
 		const beer: Beer = result.rows[0];
 		beer.abv = beer.abv / 10
 		res.json(beer)
@@ -416,12 +422,9 @@ router.get("/review/:id", express.json(), async (req: Request, res: Response) =>
 	const client = await pool.connect();
 	const { rating, review, beer_id } = req.body;
 	const decodedToken = decodeToken(req)
-	if (!decodedToken.id) {
-	 return res.status(401).json({ error: 'token invalid'})
-	}
-
-	if (!req.user || !req.user.id) {
-		return res.status(401).json({ error: "Unauthorized: user not found" });
+	
+	if (!decodedToken.id || !req.user || !req.user.id) {
+		return res.status(401).json({ error: "Unauthorized" });
 	}
 	const userId = req.user.id
 	const reviewCheck = await userBeerLookup(userId, beer_id)
@@ -513,9 +516,13 @@ router.put("/review/:id", authenticationHandler, upload.array('photos', 4), asyn
 	if (userId !== reviewuser.rows[0].author_id) {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
-	const reviewPhotoIds = await reviewPhotoLookup(reviewID)
-	const reviewPhotoNumber = reviewPhotoIds.rowCount
+	const reviewPhotosData = await reviewPhotoLookup(reviewID)
+	const reviewPhotoNumber = reviewPhotosData.rowCount
 	const files = req.files as Express.Multer.File[];
+	const positionNumbers: number[] = []
+	reviewPhotosData.rows.forEach((photo) => {
+		positionNumbers.push(photo.position)
+	})
 
 	try {
 
@@ -544,6 +551,18 @@ router.put("/review/:id", authenticationHandler, upload.array('photos', 4), asyn
 			if (!fs.existsSync(uploadPath)) {
 					fs.mkdirSync(uploadPath, { recursive: true });
 			}
+			for (let i = 0; i < positionNumbers.length; i++) {
+				const element = positionNumbers[i];
+				if(index === element) {
+					while (i < positionNumbers.length && positionNumbers[i] === index) {
+      					i++;
+				}
+				if (i < positionNumbers.length) {
+      				index = positionNumbers[i];
+    			}
+    			break;
+			}
+			} 
 			const newFileName = `${reviewID}-${index}.webp`
 			const uploadFilePathAndFile = path.join(uploadPath, newFileName)
 			await sharp(file.buffer).webp({lossless: true}).toFile(uploadFilePathAndFile)
