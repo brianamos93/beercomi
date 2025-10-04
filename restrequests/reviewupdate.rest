@@ -1,6 +1,6 @@
-PUT http://localhost:3005/beers/review/40a37340-435c-4bf0-b2c4-494f26d1e4d9 HTTP/1.1
+PUT http://localhost:3005/beers/review/894cef28-aaf8-4321-a4af-09585b4c1c94 HTTP/1.1
 Content-Type: multipart/form-data; boundary=MyBoundary
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsImlhdCI6MTc1NjcwMTU0NywiZXhwIjoxNzU2NzA1MTQ3fQ.6E1N3fM9PcyPmk7kOCvvt3HQCkJi5q1U3NGhbjMblMA
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg4MDdhNmQwLTlkMGUtNDk0OS05MzczLTFiYWE0NGU3M2Q0OSIsImlhdCI6MTc1OTMyMjg1NiwiZXhwIjoxNzU5MzI2NDU2fQ.e5_YjEVydT3FJ9RsNQbv2jKRvyGsIe31FDNYnchT-uE
 
 --MyBoundary
 Content-Disposition: form-data; name="beer_id"
@@ -16,5 +16,10 @@ This is a test review will it make it to the backend?
 Content-Disposition: form-data; name="rating"
 
 2
+
+--MyBoundary
+Content-Disposition: form-data; name="deleted"
+
+["ea09459a-0acf-4e09-9540-3846444975c0","89def35d-cbf8-4552-972d-21d89ebf1243"]
 
 --MyBoundary--
