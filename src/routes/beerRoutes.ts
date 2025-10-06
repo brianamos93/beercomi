@@ -571,7 +571,7 @@ router.put(
 		const reviewID = req.params.id;
 		const client = await pool.connect();
 		const { rating, review, beer_id, kept, deleted } = req.body;
-		const parsedDeletedData = JSON.parse(deleted)
+		const parsedDeletedData = JSON.parse(deleted);
 		const reviewcheck = await reviewLookup(reviewID);
 		const numberRating = Number(rating);
 		const trimmedBeer_id = req.body.beer_id.trim();
@@ -583,7 +583,7 @@ router.put(
 		const beerName = beerData.rows[0].name;
 
 		if (reviewcheck.rowCount == 0) {
-			return res.status(401).json({ error: "review does not exist" });
+			return res.status(401).json({ error: "Review does not exist" });
 		}
 
 		if (!req.user || !req.user.id) {
@@ -595,13 +595,9 @@ router.put(
 		if (userId !== reviewuser.rows[0].author_id) {
 			return res.status(400).json({ error: "User not authorized" });
 		}
-		const reviewPhotosData = await reviewPhotoLookup(reviewID);
-		const reviewPhotoNumber = reviewPhotosData.rowCount;
+
 		const files = req.files as Express.Multer.File[];
 		const positionNumbers: number[] = [];
-		reviewPhotosData.rows.forEach((photo) => {
-			positionNumbers.push(photo.position);
-		});
 
 		try {
 			if (!rating || !review || !beer_id) {
@@ -618,7 +614,7 @@ router.put(
 			if (parsedDeletedData && parsedDeletedData.length > 0) {
 				parsedDeletedData.forEach(async (fileId: String) => {
 					const photoCheck = await photoLookup(fileId);
-					console.log(photoCheck.rowCount)
+					console.log(photoCheck.rowCount);
 					if ((photoCheck?.rowCount ?? 0) > 0) {
 						if (!req.user || photoCheck.rows[0].user_id != req.user.id) {
 							return res
@@ -642,6 +638,11 @@ router.put(
 
 			if (files && files.length > 0) {
 				const requestPhotosCount = files.length;
+				const reviewPhotosData = await reviewPhotoLookup(reviewID);
+				const reviewPhotoNumber = reviewPhotosData.rowCount;
+				reviewPhotosData.rows.forEach((photo) => {
+					positionNumbers.push(photo.position);
+				});
 				if (
 					reviewPhotoNumber != null &&
 					(reviewPhotoNumber === 4 ||
@@ -649,7 +650,17 @@ router.put(
 				) {
 					return res.status(401).json({ error: "Photo limit exceeded" });
 				}
-				const photoInserts = files.map(async (file, index) => {
+				// Find the next available position for each new file
+				const usedPositions = new Set(positionNumbers);
+
+				const photoInserts = files.map(async (file) => {
+					// Find the lowest unused position (0-3)
+					let position = 0;
+					while (usedPositions.has(position)) {
+						position++;
+					}
+					usedPositions.add(position);
+
 					const uploadPath = path.join(
 						__dirname,
 						"..",
@@ -658,22 +669,7 @@ router.put(
 					if (!fs.existsSync(uploadPath)) {
 						fs.mkdirSync(uploadPath, { recursive: true });
 					}
-					for (let i = 0; i < positionNumbers.length; i++) {
-						const element = positionNumbers[i];
-						if (index === element) {
-							while (
-								i < positionNumbers.length &&
-								positionNumbers[i] === index
-							) {
-								i++;
-							}
-							if (i < positionNumbers.length) {
-								index = positionNumbers[i];
-							}
-							break;
-						}
-					}
-					const newFileName = `${reviewID}-${index}.webp`;
+					const newFileName = `${reviewID}-${position}.webp`;
 					const uploadFilePathAndFile = path.join(uploadPath, newFileName);
 					await sharp(file.buffer)
 						.webp({ lossless: true })
@@ -682,7 +678,7 @@ router.put(
 					client.query(
 						`INSERT INTO review_photos (review_id, photo_url, position, user_id)
 				VALUES ($1, $2, $3, $4)`,
-						[reviewID, relativeUploadFilePathAndFile, index, userId]
+						[reviewID, relativeUploadFilePathAndFile, position, userId]
 					);
 				});
 				await Promise.all(photoInserts);
@@ -691,7 +687,7 @@ router.put(
 
 			res.status(200).json({ message: "Review updated successfully" });
 		} catch (error) {
-			console.log(error)
+			console.log(error);
 			res.status(500).json({ error: "Error updating review" });
 		}
 	}
