@@ -130,7 +130,23 @@ async function photoLookup(photoId: String) {
 router.get("/", express.json(), async (req: Request, res: Response) => {
 	try {
 		const result = await pool.query(
-			"SELECT beers.id, beers.name, beers.brewery_id, breweries.name AS brewery_name, beers.description, beers.style, beers.ibu, beers.abv, beers.color, beers.cover_image, beers.date_updated, beers.date_created FROM beers LEFT JOIN breweries ON beers.brewery_id = breweries.id ORDER BY beers.date_updated DESC"
+			`SELECT 
+			beers.id, 
+			beers.name, 
+			beers.brewery_id, 
+			breweries.name AS brewery_name, 
+			beers.description, beers.style, 
+			beers.ibu, 
+			beers.abv, 
+			beers.color, 
+			beers.cover_image, 
+			beers.date_updated, 
+			beers.author_id,
+			beer_authors.display_name AS author_name,
+			beer_authors.id AS author_id, -- beer author's user id
+			beers.date_created FROM beers LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
+ 			LEFT JOIN breweries ON beers.brewery_id = breweries.id 
+			ORDER BY beers.date_updated DESC`
 		);
 		const beers: Beer[] = result.rows;
 		const modifiedBeers = beers.map((beer) => {
@@ -176,6 +192,7 @@ router.get("/:id", express.json(), async (req: Request, res: Response) => {
 			beer_authors.id AS author_id, -- beer author's user id
 			beers.date_updated,
 			beers.date_created,
+			beers.cover_image,
 			COALESCE(
 				json_agg(
 					json_build_object(
@@ -262,7 +279,8 @@ router.post(
 			newFileName = `${name}-CoverImage-${Date.now()}${ext}`;
 			const uploadFilePathAndFile = path.join(uploadPath, newFileName);
 			await sharp(req.file.buffer)
-				.resize(200, 200)
+				.webp({ lossless: true })
+				.resize(200, 200, { fit: "contain" })
 				.toFile(uploadFilePathAndFile);
 			relativeUploadFilePathAndFile = `/uploads/${breweryName}/${name}/${newFileName}`;
 		}
@@ -336,92 +354,101 @@ router.delete("/:id", express.json(), async (req: Request, res: Response) => {
 	}
 });
 
-router.put("/:id", express.json(), async (req: Request, res: Response) => {
-	const beerID = req.params.id;
-	const { name, brewery_id, description, style, ibu, abv, color } = req.body;
-	const beercheck = await beerlookup(beerID);
+router.put(
+	"/:id",
+	authenticationHandler,
+	upload.single("cover_image"),
+	async (req: Request, res: Response) => {
+		const beerID = req.params.id;
+		const {
+			name,
+			brewery_id,
+			description,
+			style,
+			ibu,
+			abv,
+			color,
+			deleteCoverImage,
+		} = req.body;
+		const beercheck = await beerlookup(beerID);
+		const userId = req?.user?.id;
 
-	if (beercheck.rowCount == 0) {
-		return res.status(401).json({ error: "beer does not exist" });
-	}
-
-	const decodedToken = decodeToken(req);
-	if (!decodedToken.id) {
-		return res.status(401).json({ error: "token invalid" });
-	}
-
-	const user = await tokenUser(decodedToken);
-	const beeruser = await beerUser(beerID);
-
-	if (user.rows[0].id !== beeruser.rows[0].author_id) {
-		return res.status(400).json({ error: "User not authorized" });
-	}
-	const brewery = await breweryLookup(brewery_id);
-	const breweryName = brewery.rows[0].name;
-	var newFileName;
-
-	const currentBeer = beercheck.rows[0];
-
-	const updates: string[] = [];
-	const values: any[] = [];
-	let i = 1; // parameter index for $1, $2, etc.
-
-	const addIfChanged = (
-		column: string,
-		newValue: any,
-		transform?: (v: any) => any
-	) => {
-		const oldValue = currentBeer[column];
-		const processed = transform ? transform(newValue) : newValue;
-		if (newValue !== undefined && processed !== oldValue) {
-			updates.push(`${column} = $${i}`);
-			values.push(processed);
-			i++;
+		if (beercheck.rowCount == 0) {
+			return res.status(401).json({ error: "beer does not exist" });
 		}
-	};
 
-	addIfChanged("name", name);
-	addIfChanged("brewery_id", brewery_id);
-	addIfChanged("description", description);
-	addIfChanged("style", style);
-	addIfChanged("ibu", ibu, (v) => Number(v));
-	addIfChanged("abv", abv, (v) => Number(v * 10));
-	addIfChanged("color", color);
-
-	if (req.file) {
-		const uploadPath = path.join(
-			__dirname,
-			"..",
-			`uploads/${breweryName}/${name ?? currentBeer.name}`
-		);
-		if (!fs.existsSync(uploadPath)) {
-			fs.mkdirSync(uploadPath, { recursive: true });
+		const decodedToken = decodeToken(req);
+		if (!decodedToken.id) {
+			return res.status(401).json({ error: "token invalid" });
 		}
-		const ext: string =
-			req.file && req.file.originalname
-				? path.extname(req.file.originalname)
-				: "";
-		newFileName = `${name ?? currentBeer.name}-CoverImage-${Date.now()}${ext}`;
-		const uploadFilePathAndFile = path.join(uploadPath, newFileName);
-		await sharp(req.file.buffer).resize(200, 200).toFile(uploadFilePathAndFile);
-		const relativeUploadFilePathAndFile = `/uploads/${breweryName}/${name}/${newFileName}`;
-		addIfChanged("cover_image", relativeUploadFilePathAndFile);
-	}
 
-	if (updates.length === 0) {
-		return res.status(200).json({ message: "No changes detected" });
-	}
+		const beeruser = await beerUser(beerID);
 
-	values.push(beerID);
-	const query = `UPDATE beers SET ${updates.join(", ")} WHERE id = $${i}`;
+		if (userId !== beeruser.rows[0].author_id) {
+			return res.status(400).json({ error: "User not authorized" });
+		}
+		const brewery = await breweryLookup(brewery_id);
+		const breweryName = brewery.rows[0].name;
+		var newFileName;
 
-	try {
-		await pool.query(query, values);
-		res.status(200).json({ message: "Beer updated successfully" });
-	} catch (error) {
-		res.status(500).json({ error: "Error updating beer" });
+		const currentBeer = beercheck.rows[0];
+
+		if (deleteCoverImage === true) {
+			const currentCoverImage = currentBeer.cover_image;
+			if (!currentCoverImage) {
+				res.status(404).json({ error: "No cover image found." });
+			}
+			const filePath = path.join(__dirname, "..", currentCoverImage);
+			if (fs.existsSync(filePath)) {
+				fs.unlinkSync(filePath);
+			}
+			const result = await pool.query(
+				`UPDATE beers SET cover_image = NULL WHERE id = $1`,
+				[beerID]
+			);
+			if (result.rowCount === 0) {
+				console.log("No beer found with that ID");
+			}
+		}
+		if (req.file) {
+			const uploadPath = path.join(
+				__dirname,
+				"..",
+				`uploads/${breweryName}/${name ?? currentBeer.name}`
+			);
+			if (!fs.existsSync(uploadPath)) {
+				fs.mkdirSync(uploadPath, { recursive: true });
+			}
+			const ext: string =
+				req.file && req.file.originalname
+					? path.extname(req.file.originalname)
+					: "";
+			newFileName = `${
+				name ?? currentBeer.name
+			}-CoverImage-${Date.now()}${ext}`;
+			const uploadFilePathAndFile = path.join(uploadPath, newFileName);
+			await sharp(req.file.buffer)
+				.webp({ lossless: true })
+				.resize(200, 200, { fit: "contain" })
+				.toFile(uploadFilePathAndFile);
+			const relativeUploadFilePathAndFile = `/uploads/${breweryName}/${name}/${newFileName}`;
+			await pool.query(`UPDATE beers SET cover_image = $1 WHERE id = $2`, [
+				relativeUploadFilePathAndFile,
+				beerID,
+			]);
+		}
+
+		try {
+			await pool.query(
+				`UPDATE beers SET name = $1, brewery_id = $2, description = $3, style = $4, ibu = $5, abv = $6, color = $7 WHERE id = $8`,
+				[name, brewery_id, description, style, ibu, abv, color, beerID]
+			);
+			res.status(200).json({ message: "Beer updated successfully" });
+		} catch (error) {
+			res.status(500).json({ error: "Error updating beer" });
+		}
 	}
-});
+);
 
 router.get(
 	"/review/:id",
@@ -614,7 +641,6 @@ router.put(
 			if (parsedDeletedData && parsedDeletedData.length > 0) {
 				parsedDeletedData.forEach(async (fileId: String) => {
 					const photoCheck = await photoLookup(fileId);
-					console.log(photoCheck.rowCount);
 					if ((photoCheck?.rowCount ?? 0) > 0) {
 						if (!req.user || photoCheck.rows[0].user_id != req.user.id) {
 							return res
