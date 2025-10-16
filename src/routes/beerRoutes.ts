@@ -6,6 +6,8 @@ import fs from "fs";
 import path from "path";
 import { FileFilterCallback } from "multer";
 import sharp from "sharp";
+import { validationHandler } from "../utils/validationMiddleware";
+import { BeerSchemaBase } from "../schemas/beerSchemas";
 const { authenticationHandler } = require("../utils/middleware");
 const express = require("express");
 
@@ -246,6 +248,7 @@ router.post(
 	"/",
 	authenticationHandler,
 	upload.single("cover_image"),
+	validationHandler(BeerSchemaBase),
 	async (req: Request, res: Response) => {
 		for (const key in req.body) {
 			if (typeof req.body[key] === "string") {
