@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { ZodSchema } from "zod";
+import { ZodType } from "zod";
 
 const normalizeRequestBody = (body: Record<string, any>) => {
   const normalized: Record<string, any> = {};
@@ -17,7 +17,7 @@ const normalizeRequestBody = (body: Record<string, any>) => {
 
 
 
-export const validationHandler = (schema: ZodSchema) => {
+export const validationHandler = (schema: ZodType) => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
       // Normalize strings
