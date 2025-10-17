@@ -7,7 +7,8 @@ import path from "path";
 import { FileFilterCallback } from "multer";
 import sharp from "sharp";
 import { validationHandler } from "../utils/validationMiddleware";
-import { BeerSchemaBase } from "../schemas/beerSchemas";
+import { BeerSchemaBase, EditBeerSchema } from "../schemas/beerSchemas";
+import { CreateReviewSchema, EditReviewSchema } from "../schemas/reviewSchemas";
 const { authenticationHandler } = require("../utils/middleware");
 const express = require("express");
 
@@ -68,7 +69,7 @@ const fileFilter = (
 	else cb(new Error("Only .jpeg and .png files are allowed"));
 };
 
-const upload = multer({ storage: multer.memoryStorage(), fileFilter });
+const upload = multer({ storage: multer.memoryStorage(), fileFilter, limits: {fileSize: 1_000_000} });
 
 async function beerlookup(beerID: String) {
 	return await pool.query(
@@ -361,6 +362,7 @@ router.put(
 	"/:id",
 	authenticationHandler,
 	upload.single("cover_image"),
+	validationHandler(EditBeerSchema),
 	async (req: Request, res: Response) => {
 		const beerID = req.params.id;
 		const {
@@ -518,6 +520,7 @@ router.post(
 	"/review/",
 	authenticationHandler,
 	upload.array("photos", 4),
+	validationHandler(CreateReviewSchema),
 	async (req: Request, res: Response) => {
 		const client = await pool.connect();
 		const { rating, review, beer_id } = req.body;
@@ -597,6 +600,7 @@ router.put(
 	"/review/:id",
 	authenticationHandler,
 	upload.array("photos", 4),
+	validationHandler(EditReviewSchema),
 	async (req: Request, res: Response) => {
 		const reviewID = req.params.id;
 		const client = await pool.connect();
