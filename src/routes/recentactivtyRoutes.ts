@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import pool from "../utils/db";
+import pool from "../utils/config";
 const express = require('express')
 
 

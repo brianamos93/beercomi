@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import pool from "../utils/db";
+import pool from "../utils/config";
 import { decodeToken } from "../utils/userlib";
 import multer from "multer";
 import fs from 'fs';

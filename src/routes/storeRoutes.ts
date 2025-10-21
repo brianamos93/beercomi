@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import pool from "../utils/db";
+import pool from "../utils/config";
 import { tokenUser, decodeToken } from "../utils/userlib";
 const express = require('express')
 

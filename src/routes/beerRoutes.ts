@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import pool from "../utils/db";
+import pool from "../utils/config"
 import { tokenUser, decodeToken } from "../utils/userlib";
 const multer = require("multer");
 import fs from "fs";
@@ -71,7 +71,7 @@ const fileFilter = (
 
 const upload = multer({ storage: multer.memoryStorage(), fileFilter, limits: {fileSize: 1_000_000} });
 
-async function beerlookup(beerID: String) {
+async function beerlookup(beerID: string) {
 	return await pool.query(
 		"SELECT id, name, brewery_id, description, ibu, abv, color, author_id, style, cover_image FROM beers WHERE id = $1",
 		[beerID]

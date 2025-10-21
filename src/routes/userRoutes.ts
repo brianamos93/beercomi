@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
-import pool from "../utils/db";
+import pool from "../utils/config";
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 import { tokenUser, decodeToken } from "../utils/userlib";
