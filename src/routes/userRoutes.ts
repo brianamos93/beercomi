@@ -1,4 +1,4 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router, Request, Response } from "express";
 import pool from "../utils/config";
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
@@ -11,10 +11,7 @@ import sharp from "sharp";
 const express = require('express')
 
 const { authenticationHandler } = require("../utils/middleware");
-interface CustomRequest extends Request {
-  file?: Express.Multer.File; // For single file uploads
-  files?: Express.Multer.File[]; // For multiple file uploads (array of files)
-}
+
 
 const getRecentActivityOneUser = async (userId: string) => {
 	try {
@@ -34,7 +31,7 @@ const getRecentActivityOneUser = async (userId: string) => {
 			return []
 		}
 
-		let sql = `
+		const sql = `
 		SELECT *
 		FROM (
 			${tables.map(
@@ -151,8 +148,9 @@ router.post("/profile/img/upload", authenticationHandler, upload.single('image')
 				WHERE id = $2
 				RETURNING *;
 				`, [relativeUploadFilePathAndFile, userId])
-				res.json({message: "Upload Sucessful"})
+				res.status(200).json({message: "Upload Sucessful"})
 		} catch (error) {
+			console.log(error)
 			res.status(401).json({error: "Error uploading avatar."})
 		}
 })
@@ -174,7 +172,7 @@ router.delete("/profile/img", authenticationHandler, async(req: Request, res: Re
                 WHERE id = $1
                 RETURNING *;
             `, [userId])
-            return res.json({message: "Avatar Successfully Deleted."})
+            return res.status(200).json({message: "Avatar Successfully Deleted."})
         } catch (error) {
             return res.status(500).json({error})
         }
@@ -285,7 +283,7 @@ router.delete("/user/:id", express.json(), async (req: Request, res: Response) =
 	}
 	const user = await tokenUser(decodedToken)
 	const userDataResult = await userIdGet(userID)
-	if (user.rows[0].id !== userDataResult.rows[0].id || userDataResult.rows[0].role !== "admin") {
+	if (user.rows[0].id !== userDataResult.rows[0].id && user.rows[0].role !== "admin") {
 		return res.status(400).json({ error: "User not authorized" })
 	}
 	try {
@@ -297,7 +295,7 @@ router.delete("/user/:id", express.json(), async (req: Request, res: Response) =
 	}
   });
 
-router.put("/user/:id", express.json(), async (req: Request, res: Response) => {
+router.put("/user/:id", authenticationHandler, express.json(), async (req: Request, res: Response) => {
 	const userID = req.params.id
 	const { password } = req.body;
 
@@ -374,6 +372,7 @@ router.put("/verified/:id", express.json(), async (req: Request, res: Response) 
 	  await pool.query("UPDATE users SET verification = TRUE WHERE id = $1", [userID]);
 	  res.sendStatus(200);
 	} catch (error) {
+		console.log(error)
 	  res.sendStatus(500).json({ error: "Error updating users" });
 	}
  });
