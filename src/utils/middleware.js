@@ -27,18 +27,36 @@ const errorHandler = (error, request, response, next) => {
   next(error)
 }
 
+// Use CommonJS style and do NOT call this when registering middleware.
+// Register as: app.use(authenticationHandler) or router.use(authenticationHandler)
 const authenticationHandler = (req, res, next) => {
- 
-  const token = getTokenFrom(req)
-  
-  if (!token) return res.status(401).send({error: 'Not Authorized'})
+  try {
+    const token = getTokenFrom(req);
 
+    // No token extracted
+    if (!token) {
+      return res.status(401).json({ error: "Not authorized: missing or malformed token" });
+    }
+
+    // Verify token
     jwt.verify(token, process.env.SECRET, (err, user) => {
-      if(err) return res.status(403).send({error: "Error"})
-        req.user = user
-        next()
-    })
-}
+      if (err) {
+        return res.status(401).json({ error: "Invalid or expired token" });
+      }
+
+      // Attach decoded user data to request
+      req.user = user;
+      next();
+    });
+  } catch (error) {
+    // Defensive: if res is undefined, log and pass to next()
+    if (!res || typeof res.status !== 'function') {
+      console.error('authenticationHandler error (no res):', error);
+      return next ? next(error) : undefined;
+    }
+    return res.status(400).json({ error: "Bad request: malformed Authorization header" });
+  }
+};
 
 module.exports = {
   requestLogger,
