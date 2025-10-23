@@ -1,6 +1,6 @@
 import { Request } from "express";
 const jwt = require('jsonwebtoken')
-import pool from "../utils/db";
+import pool from "../utils/config";
 
 export async function tokenUser(decodedToken: any) {
 	return await pool.query(
@@ -9,12 +9,17 @@ export async function tokenUser(decodedToken: any) {
   }
 
 export const getTokenFrom = (req: Request) => {
-	const authorization = req.get('Authorization')
-	if (authorization && authorization.startsWith('Bearer ')) {
-	  return authorization.replace('Bearer ', '')
-	}
-	return null
+  if (!req || typeof req.get !== 'function') {
+    return null
   }
+
+  const authorization = req.get('Authorization')
+  if (typeof authorization === 'string' && authorization.startsWith('Bearer ')) {
+    return authorization.slice(7) // faster and cleaner than replace
+  }
+
+  return null
+}
 
 export function decodeToken(req: Request) {
 	return jwt.verify(getTokenFrom(req), process.env.SECRET);
