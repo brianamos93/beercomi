@@ -260,8 +260,8 @@ router.post(
 		const trimmedBrewery_id = brewery_id.trim();
 		const brewery = await breweryLookup(trimmedBrewery_id);
 		const breweryName = brewery.rows[0].name;
-		var newFileName = null;
-		var relativeUploadFilePathAndFile = null;
+		let newFileName = null;
+		let relativeUploadFilePathAndFile = null;
 
 		if (!req.user || !req.user.id) {
 			return res.status(401).json({ error: "Unauthorized: user not found" });
