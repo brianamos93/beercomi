@@ -394,7 +394,7 @@ router.put(
 		}
 		const brewery = await breweryLookup(brewery_id);
 		const breweryName = brewery.rows[0].name;
-		var newFileName;
+		let newFileName;
 
 		const currentBeer = beercheck.rows[0];
 
@@ -450,6 +450,7 @@ router.put(
 			);
 			res.status(200).json({ message: "Beer updated successfully" });
 		} catch (error) {
+			console.log(error)
 			res.status(500).json({ error: "Error updating beer" });
 		}
 	}
