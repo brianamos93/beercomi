@@ -14,20 +14,11 @@ const express = require('express')
 
 const router = Router();
 
-interface CustomRequest extends Request {
-  file?: Express.Multer.File; // For single file uploads
-  files?: Express.Multer.File[]; // For multiple file uploads (array of files)
-}
 
-interface AuthenticatedRequest extends Request {
-  user?: {id: string, role: string};
-}
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {id: string, role: string};
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+	user?: { id: string; role: string };
   }
 }
 
@@ -56,15 +47,15 @@ const fileFilter = (_req: Request, file: Express.Multer.File, cb: FileFilterCall
 const upload = multer({ storage: multer.memoryStorage(), fileFilter });
 
 
-async function brewerylookup(breweryID: String) {
+async function brewerylookup(breweryID: string) {
 	return await pool.query("SELECT id, name, location, date_of_founding, author_id FROM breweries WHERE id = $1", [breweryID]);
   }
 
-async function breweryUser(breweryID: String) {
+async function breweryUser(breweryID: string) {
 	return await pool.query("SELECT author_id FROM breweries WHERE id = $1", [breweryID]);
   }
 
-async function breweryCoverImageLookup(breweryID: String) {
+async function breweryCoverImageLookup(breweryID: string) {
 	return await pool.query("SELECT cover_image FROM breweries WHERE id = $1", [breweryID]);
   }
 
@@ -135,8 +126,8 @@ GROUP BY breweries.id, brewery_authors.display_name;`, [breweryId])
 router.post("/", authenticationHandler, upload.single('cover_image'), async (req: Request, res: Response) => {
 	const { name, location, date_of_founding } = req.body;
 
-	var newFileName = null
-	var relativeUploadFilePathAndFile = null
+	let newFileName = null
+	let relativeUploadFilePathAndFile = null
 
 	if (!req.user || !req.user.id) {
 	return res.status(401).json({ error: "Unauthorized: user not found" });
@@ -206,7 +197,7 @@ router.post("/", authenticationHandler, upload.single('cover_image'), async (req
 	if (req.user.id !== breweryuser.rows[0].author_id && userRole !== 'admin') {
 	 return res.status(400).json({ error: "User not authorized" })
 	}
-	var relativeUploadFilePathAndFile
+	let relativeUploadFilePathAndFile
 
 	if (req.file) {
 	
