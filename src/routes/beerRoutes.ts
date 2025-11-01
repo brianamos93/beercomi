@@ -78,52 +78,52 @@ async function beerlookup(beerID: string) {
 	);
 }
 
-async function beerUser(beerID: String) {
+async function beerUser(beerID: string) {
 	return await pool.query("SELECT author_id FROM beers WHERE id = $1", [
 		beerID,
 	]);
 }
 
-async function reviewLookup(reviewID: String) {
+async function reviewLookup(reviewID: string) {
 	return await pool.query("SELECT id FROM beer_reviews WHERE id = $1", [
 		reviewID,
 	]);
 }
 
-async function reviewUser(reviewID: String) {
+async function reviewUser(reviewID: string) {
 	return await pool.query("SELECT author_id FROM beer_reviews WHERE id = $1", [
 		reviewID,
 	]);
 }
 
-async function userBeerLookup(authorID: String, beerID: String) {
+async function userBeerLookup(authorID: string, beerID: string) {
 	return await pool.query(
 		"SELECT id FROM beer_reviews WHERE author_id = $1 AND beer_id = $2",
 		[authorID, beerID]
 	);
 }
 
-async function breweryLookup(breweryID: String) {
+async function breweryLookup(breweryID: string) {
 	return await pool.query(
 		"SELECT name, id, location, date_of_founding, date_created, date_updated, author_id FROM breweries WHERE id = $1",
 		[breweryID]
 	);
 }
 
-async function beerCoverImageLookup(beerId: String) {
+async function beerCoverImageLookup(beerId: string) {
 	return await pool.query("SELECT cover_image FROM beers WHERE id = $1", [
 		beerId,
 	]);
 }
 
-async function reviewPhotoLookup(reviewId: String) {
+async function reviewPhotoLookup(reviewId: string) {
 	return await pool.query(
 		"SELECT user_id, photo_url, position FROM review_photos WHERE review_id = $1",
 		[reviewId]
 	);
 }
 
-async function photoLookup(photoId: String) {
+async function photoLookup(photoId: string) {
 	return await pool.query(
 		"SELECT user_id, photo_url FROM review_photos WHERE id = $1",
 		[photoId]
