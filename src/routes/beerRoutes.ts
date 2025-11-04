@@ -647,7 +647,7 @@ router.put(
 			);
 
 			if (parsedDeletedData && parsedDeletedData.length > 0) {
-				parsedDeletedData.forEach(async (fileId: String) => {
+				parsedDeletedData.forEach(async (fileId: string) => {
 					const photoCheck = await photoLookup(fileId);
 					if ((photoCheck?.rowCount ?? 0) > 0) {
 						if (!req.user || photoCheck.rows[0].user_id != req.user.id) {
