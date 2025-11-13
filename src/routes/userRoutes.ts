@@ -140,7 +140,7 @@ router.post("/profile/img/upload", authenticationHandler, upload.single('image')
 				}
 			}
 			await sharp(req.file.buffer).resize(200,200).toFile(uploadFilePathAndFile)
-			const relativeUploadFilePathAndFile = "/uploads/" + newFileName
+			const relativeUploadFilePathAndFile = "/uploads/users/" + newFileName
 			const userId = user.rows[0].id
 			await pool.query(`
 				UPDATE users
