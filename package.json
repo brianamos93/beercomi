@@ -16,6 +16,7 @@
     "@babel/preset-env": "^7.28.3",
     "@babel/preset-typescript": "^7.27.1",
     "@eslint/js": "^9.37.0",
+    "@faker-js/faker": "^9.9.0",
     "@jest/globals": "^30.2.0",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.10",
