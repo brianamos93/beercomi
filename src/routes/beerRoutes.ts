@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import pool from "../utils/config"
+import pool from "../utils/config";
 import { tokenUser, decodeToken } from "../utils/userlib";
 const multer = require("multer");
 import fs from "fs";
@@ -9,6 +9,7 @@ import sharp from "sharp";
 import { validationHandler } from "../utils/validationMiddleware";
 import { BeerSchemaBase, EditBeerSchema } from "../schemas/beerSchemas";
 import { CreateReviewSchema, EditReviewSchema } from "../schemas/reviewSchemas";
+import { querySchema } from "../schemas/querySchema";
 const { authenticationHandler } = require("../utils/middleware");
 const express = require("express");
 
@@ -69,7 +70,11 @@ const fileFilter = (
 	else cb(new Error("Only .jpeg and .png files are allowed"));
 };
 
-const upload = multer({ storage: multer.memoryStorage(), fileFilter, limits: {fileSize: 1_000_000} });
+const upload = multer({
+	storage: multer.memoryStorage(),
+	fileFilter,
+	limits: { fileSize: 1_000_000 },
+});
 
 async function beerlookup(beerID: string) {
 	return await pool.query(
@@ -130,10 +135,13 @@ async function photoLookup(photoId: string) {
 	);
 }
 
-router.get("/", express.json(), async (req: Request, res: Response) => {
+router.get("/", validationHandler(querySchema), express.json(), async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query(
-			`SELECT 
+		const page = parseInt(req.query.page as string) || 1;
+		const limit = parseInt(req.query.limit as string) || 10;
+		const offset = (page - 1) * limit;
+		const mainQuery = `
+			SELECT 
 			beers.id, 
 			beers.name, 
 			beers.brewery_id, 
@@ -149,16 +157,28 @@ router.get("/", express.json(), async (req: Request, res: Response) => {
 			beer_authors.id AS author_id, -- beer author's user id
 			beers.date_created FROM beers LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
  			LEFT JOIN breweries ON beers.brewery_id = breweries.id 
-			ORDER BY beers.date_updated DESC`
-		);
-		const beers: Beer[] = result.rows;
+			ORDER BY beers.date_updated DESC
+			LIMIT $1 OFFSET $2
+		`;
+		const countQuery = `SELECT COUNT(*) FROM beers`;
+
+		const [beersResult, countResult] = await Promise.all([
+			pool.query(mainQuery, [limit, offset]),
+			pool.query(countQuery),
+		]);
+
+		const totalItems = parseInt(countResult.rows[0].count);
+		const totalPages = Math.ceil(totalItems / limit);
+
+	
+		const beers: Beer[] = beersResult.rows;
 		const modifiedBeers = beers.map((beer) => {
 			return {
 				...beer,
 				abv: beer.abv / 10,
 			};
 		});
-		res.json(modifiedBeers);
+		res.json({page, limit, totalItems, totalPages, data: modifiedBeers});
 	} catch (error) {
 		console.error("Error fetching beers", error);
 		res.status(500).json({ error: "Error fetching beers" });
@@ -450,7 +470,7 @@ router.put(
 			);
 			res.status(200).json({ message: "Beer updated successfully" });
 		} catch (error) {
-			console.log(error)
+			console.log(error);
 			res.status(500).json({ error: "Error updating beer" });
 		}
 	}
