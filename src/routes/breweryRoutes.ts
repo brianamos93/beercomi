@@ -87,17 +87,19 @@ router.get(
 
 			const mainQuery = `
 			SELECT 
-			breweries.id,
-			breweries.name,
-			breweries.location,
-			brewereies.date_of_founding,
-			breweries.date_created,
-			breweries.date_updated,
-			breweries.author_id,
-			brewery_authors.display_name as author_name
-			FROM breweries
-			LEFT JOIN users AS brewery_authors ON breweries.author_id = brewery_authors.id
-			ORDER BY date_updated DESC
+    			breweries.id,
+   				breweries.name,
+				breweries.location,
+				breweries.date_of_founding,
+				breweries.date_created,
+				breweries.date_updated,
+				breweries.author_id,
+				brewery_authors.display_name AS author_name
+				FROM breweries
+				LEFT JOIN users AS brewery_authors 
+					ON breweries.author_id = brewery_authors.id
+				ORDER BY breweries.date_updated DESC
+				LIMIT $1 OFFSET $2
 			`;
 
 			const countQuery = `SELECT COUNT(*) FROM breweries`;
@@ -110,8 +112,7 @@ router.get(
 
 			const totalItems = parseInt(countResult.rows[0].count);
 			const totalPages = Math.ceil(totalItems / limit);
-			res.json({page, limit, totalItems, totalPages, data: brewereies})
-
+			res.json({ page, limit, totalItems, totalPages, data: brewereies });
 		} catch (error) {
 			console.error("Error fetching breweries", error);
 			res.status(500).json({ error: "Error fetching breweries" });
@@ -130,49 +131,87 @@ router.get("/list", express.json(), async (req: Request, res: Response) => {
 	}
 });
 
-router.get("/:id", express.json(), async (req: Request, res: Response) => {
-	const breweryId = req.params.id;
-	try {
-		const result = await pool.query(
-			`SELECT 
-	breweries.id, 
-	breweries.name, 
-	breweries.location, 
-	breweries.date_of_founding,
-	breweries.cover_image, 
-	breweries.date_created, 
-	breweries.date_updated, 
-	brewery_authors.display_name, 
-	breweries.author_id, 
-	COALESCE(json_agg(json_build_object(
-		'id', beers.id,
-		'name', beers.name,
-		'style', beers.style,
-		'ibu', beers.ibu,
-		'abv', beers.abv,
-		'color', beers.color,
-		'description', beers.description,
-		'cover_image', beers.cover_image,
-		'date_created', beers.date_created,
-		'date_updated', beers.date_updated,
-		'author_id', beers.author_id,
-		'author_name', beer_authors.display_name)
-	) FILTER (WHERE beers.id IS NOT NULL), '[]') AS beers 
-FROM breweries 
-LEFT JOIN users AS brewery_authors ON breweries.author_id = brewery_authors.id 
-LEFT JOIN beers ON breweries.id = beers.brewery_id 
-LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
-WHERE breweries.id = $1 
-GROUP BY breweries.id, brewery_authors.display_name;`,
-			[breweryId]
-		);
-		const breweries: Brewery[] = result.rows[0];
-		res.json(breweries);
-	} catch (error) {
-		console.error("Error fetching breweries", error);
-		res.status(500).json({ error: "Error fetching breweries" });
+router.get(
+	"/:id",
+	validationHandler(querySchema),
+	express.json(),
+	async (req: Request, res: Response) => {
+		const breweryId = req.params.id;
+		const limit = Number(req.query.limit) || 10;
+		const offset = Number(req.query.offset) || 0;
+
+		try {
+			// -------- 1. Fetch brewery data (without beers)
+			const breweryResult = await pool.query(
+				`SELECT 
+        breweries.id, 
+        breweries.name, 
+        breweries.location, 
+        breweries.date_of_founding,
+        breweries.cover_image, 
+        breweries.date_created, 
+        breweries.date_updated, 
+        brewery_authors.display_name AS author_name,
+        breweries.author_id
+      FROM breweries
+      LEFT JOIN users AS brewery_authors 
+        ON breweries.author_id = brewery_authors.id
+      WHERE breweries.id = $1`,
+				[breweryId]
+			);
+
+			if (breweryResult.rows.length === 0) {
+				return res.status(404).json({ error: "Brewery not found" });
+			}
+
+			const brewery = breweryResult.rows[0];
+
+			// -------- 2. Fetch paginated beers
+			const beersResult = await pool.query(
+				`SELECT 
+        beers.id,
+        beers.name,
+        beers.style,
+        beers.ibu,
+        beers.abv,
+        beers.color,
+        beers.description,
+        beers.cover_image,
+        beers.date_created,
+        beers.date_updated,
+        beers.author_id,
+        beer_authors.display_name AS author_name
+      FROM beers
+      LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
+      WHERE beers.brewery_id = $1
+      ORDER BY beers.date_created DESC
+      LIMIT $2 OFFSET $3`,
+				[breweryId, limit, offset]
+			);
+
+			// -------- 3. Count total beers for frontend pagination UI
+			const countResult = await pool.query(
+				`SELECT COUNT(*) FROM beers WHERE brewery_id = $1`,
+				[breweryId]
+			);
+
+			const totalBeers = Number(countResult.rows[0].count);
+
+			res.json({
+				...brewery,
+				beers: beersResult.rows,
+				pagination: {
+					total: totalBeers,
+					limit,
+					offset,
+				},
+			});
+		} catch (error) {
+			console.error("Error fetching brewery", error);
+			res.status(500).json({ error: "Error fetching brewery" });
+		}
 	}
-});
+);
 
 router.post(
 	"/",
