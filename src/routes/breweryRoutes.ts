@@ -12,6 +12,7 @@ import {
 	BrewerySchemaBase,
 	EditBrewerySchema,
 } from "../schemas/brewerySchemas";
+import { querySchema } from "../schemas/querySchema";
 const { authenticationHandler } = require("../utils/middleware");
 const express = require("express");
 
@@ -74,18 +75,49 @@ async function breweryCoverImageLookup(breweryID: string) {
 	]);
 }
 
-router.get("/", express.json(), async (req: Request, res: Response) => {
-	try {
-		const result = await pool.query(
-			"SELECT * FROM breweries ORDER BY date_updated DESC"
-		);
-		const breweries: Brewery[] = result.rows;
-		res.json(breweries);
-	} catch (error) {
-		console.error("Error fetching breweries", error);
-		res.status(500).json({ error: "Error fetching breweries" });
+router.get(
+	"/",
+	validationHandler(querySchema),
+	express.json(),
+	async (req: Request, res: Response) => {
+		try {
+			const page = parseInt(req.query.page as string) || 1;
+			const limit = parseInt(req.query.limit as string) || 10;
+			const offset = (page - 1) * limit;
+
+			const mainQuery = `
+			SELECT 
+			breweries.id,
+			breweries.name,
+			breweries.location,
+			brewereies.date_of_founding,
+			breweries.date_created,
+			breweries.date_updated,
+			breweries.author_id,
+			brewery_authors.display_name as author_name
+			FROM breweries
+			LEFT JOIN users AS brewery_authors ON breweries.author_id = brewery_authors.id
+			ORDER BY date_updated DESC
+			`;
+
+			const countQuery = `SELECT COUNT(*) FROM breweries`;
+			const [breweriesResult, countResult] = await Promise.all([
+				pool.query(mainQuery, [limit, offset]),
+				pool.query(countQuery),
+			]);
+
+			const brewereies: Brewery[] = breweriesResult.rows;
+
+			const totalItems = parseInt(countResult.rows[0].count);
+			const totalPages = Math.ceil(totalItems / limit);
+			res.json({page, limit, totalItems, totalPages, data: brewereies})
+
+		} catch (error) {
+			console.error("Error fetching breweries", error);
+			res.status(500).json({ error: "Error fetching breweries" });
+		}
 	}
-});
+);
 
 router.get("/list", express.json(), async (req: Request, res: Response) => {
 	try {
@@ -227,7 +259,7 @@ router.put(
 		if (req.user.id !== breweryuser.rows[0].author_id && userRole !== "admin") {
 			return res.status(400).json({ error: "User not authorized" });
 		}
-		
+
 		if (deleteCoverImage === true) {
 			const currentCoverImage = brewerycheck.rows[0].cover_image;
 			if (!currentCoverImage) {
