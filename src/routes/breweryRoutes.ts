@@ -144,19 +144,20 @@ router.get(
 			// -------- 1. Fetch brewery data (without beers)
 			const breweryResult = await pool.query(
 				`SELECT 
-        breweries.id, 
-        breweries.name, 
-        breweries.location, 
-        breweries.date_of_founding,
-        breweries.cover_image, 
-        breweries.date_created, 
-        breweries.date_updated, 
-        brewery_authors.display_name AS author_name,
-        breweries.author_id
-      FROM breweries
-      LEFT JOIN users AS brewery_authors 
-        ON breweries.author_id = brewery_authors.id
-      WHERE breweries.id = $1`,
+					breweries.id, 
+					breweries.name, 
+					breweries.location, 
+					breweries.date_of_founding,
+					breweries.cover_image, 
+					breweries.date_created, 
+					breweries.date_updated, 
+					brewery_authors.display_name AS author_name,
+					breweries.author_id
+				FROM breweries
+				LEFT JOIN users AS brewery_authors 
+					ON breweries.author_id = brewery_authors.id
+				WHERE breweries.id = $1
+				`,
 				[breweryId]
 			);
 
@@ -169,23 +170,24 @@ router.get(
 			// -------- 2. Fetch paginated beers
 			const beersResult = await pool.query(
 				`SELECT 
-        beers.id,
-        beers.name,
-        beers.style,
-        beers.ibu,
-        beers.abv,
-        beers.color,
-        beers.description,
-        beers.cover_image,
-        beers.date_created,
-        beers.date_updated,
-        beers.author_id,
-        beer_authors.display_name AS author_name
-      FROM beers
-      LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
-      WHERE beers.brewery_id = $1
-      ORDER BY beers.date_created DESC
-      LIMIT $2 OFFSET $3`,
+					beers.id,
+					beers.name,
+					beers.style,
+					beers.ibu,
+					beers.abv,
+					beers.color,
+					beers.description,
+					beers.cover_image,
+					beers.date_created,
+					beers.date_updated,
+					beers.author_id,
+					beer_authors.display_name AS author_name
+				FROM beers
+				LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
+				WHERE beers.brewery_id = $1
+				ORDER BY beers.date_created DESC
+				LIMIT $2 OFFSET $3
+				`,
 				[breweryId, limit, offset]
 			);
 
