@@ -168,8 +168,6 @@ router.get("/", validationHandler(querySchema), express.json(), async (req: Requ
 		]);
 
 		const totalItems = parseInt(countResult.rows[0].count);
-		const totalPages = Math.ceil(totalItems / limit);
-
 	
 		const beers: Beer[] = beersResult.rows;
 		const modifiedBeers = beers.map((beer) => {
@@ -178,7 +176,12 @@ router.get("/", validationHandler(querySchema), express.json(), async (req: Requ
 				abv: beer.abv / 10,
 			};
 		});
-		res.json({page, limit, totalItems, totalPages, data: modifiedBeers});
+		res.json({
+			pagination: {
+					total: totalItems,
+					limit,
+					offset,
+				}, data: modifiedBeers});
 	} catch (error) {
 		console.error("Error fetching beers", error);
 		res.status(500).json({ error: "Error fetching beers" });

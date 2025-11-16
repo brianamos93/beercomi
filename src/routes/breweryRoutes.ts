@@ -111,8 +111,11 @@ router.get(
 			const brewereies: Brewery[] = breweriesResult.rows;
 
 			const totalItems = parseInt(countResult.rows[0].count);
-			const totalPages = Math.ceil(totalItems / limit);
-			res.json({ page, limit, totalItems, totalPages, data: brewereies });
+			res.json({ pagination: {
+					total: totalItems,
+					limit,
+					offset,
+				}, data: brewereies });
 		} catch (error) {
 			console.error("Error fetching breweries", error);
 			res.status(500).json({ error: "Error fetching breweries" });
