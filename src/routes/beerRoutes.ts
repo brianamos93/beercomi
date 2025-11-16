@@ -135,12 +135,16 @@ async function photoLookup(photoId: string) {
 	);
 }
 
-router.get("/", validationHandler(querySchema), express.json(), async (req: Request, res: Response) => {
-	try {
-		const page = parseInt(req.query.page as string) || 1;
-		const limit = parseInt(req.query.limit as string) || 10;
-		const offset = (page - 1) * limit;
-		const mainQuery = `
+router.get(
+	"/",
+	validationHandler(querySchema),
+	express.json(),
+	async (req: Request, res: Response) => {
+		try {
+			const page = parseInt(req.query.page as string) || 1;
+			const limit = parseInt(req.query.limit as string) || 10;
+			const offset = (page - 1) * limit;
+			const mainQuery = `
 			SELECT 
 			beers.id, 
 			beers.name, 
@@ -160,33 +164,36 @@ router.get("/", validationHandler(querySchema), express.json(), async (req: Requ
 			ORDER BY beers.date_updated DESC
 			LIMIT $1 OFFSET $2
 		`;
-		const countQuery = `SELECT COUNT(*) FROM beers`;
+			const countQuery = `SELECT COUNT(*) FROM beers`;
 
-		const [beersResult, countResult] = await Promise.all([
-			pool.query(mainQuery, [limit, offset]),
-			pool.query(countQuery),
-		]);
+			const [beersResult, countResult] = await Promise.all([
+				pool.query(mainQuery, [limit, offset]),
+				pool.query(countQuery),
+			]);
 
-		const totalItems = parseInt(countResult.rows[0].count);
-	
-		const beers: Beer[] = beersResult.rows;
-		const modifiedBeers = beers.map((beer) => {
-			return {
-				...beer,
-				abv: beer.abv / 10,
-			};
-		});
-		res.json({
-			pagination: {
+			const totalItems = parseInt(countResult.rows[0].count);
+
+			const beers: Beer[] = beersResult.rows;
+			const modifiedBeers = beers.map((beer) => {
+				return {
+					...beer,
+					abv: beer.abv / 10,
+				};
+			});
+			res.json({
+				pagination: {
 					total: totalItems,
 					limit,
 					offset,
-				}, data: modifiedBeers});
-	} catch (error) {
-		console.error("Error fetching beers", error);
-		res.status(500).json({ error: "Error fetching beers" });
+				},
+				data: modifiedBeers,
+			});
+		} catch (error) {
+			console.error("Error fetching beers", error);
+			res.status(500).json({ error: "Error fetching beers" });
+		}
 	}
-});
+);
 
 router.get("/list", express.json(), async (req: Request, res: Response) => {
 	try {
