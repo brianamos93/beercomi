@@ -1,7 +1,6 @@
-import pool from "../src/utils/config";
 import app from '../src/app'
 import request from "supertest";
-
+const pool = require("../src/utils/config").default;
 
 beforeAll(async () => {
   await pool.query("TRUNCATE TABLE users RESTART IDENTITY CASCADE;");
