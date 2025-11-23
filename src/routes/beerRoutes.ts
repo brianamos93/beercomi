@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import pool from "../utils/config";
 import { tokenUser, decodeToken } from "../utils/userlib";
-const multer = require("multer");
+import multer from "multer";
 import fs from "fs";
 import path from "path";
 import { FileFilterCallback } from "multer";
@@ -11,7 +11,7 @@ import { BeerSchemaBase, EditBeerSchema } from "../schemas/beerSchemas";
 import { CreateReviewSchema, EditReviewSchema } from "../schemas/reviewSchemas";
 import { querySchema } from "../schemas/querySchema";
 const { authenticationHandler } = require("../utils/middleware");
-const express = require("express");
+import express from "express";
 
 const router = Router();
 
@@ -76,7 +76,7 @@ const upload = multer({
 	limits: { fileSize: 1_000_000 },
 });
 
-async function beerlookup(beerID: string) {
+export async function beerlookup(beerID: string) {
 	return await pool.query(
 		"SELECT id, name, brewery_id, description, ibu, abv, color, author_id, style, cover_image FROM beers WHERE id = $1",
 		[beerID]
@@ -108,7 +108,7 @@ async function userBeerLookup(authorID: string, beerID: string) {
 	);
 }
 
-async function breweryLookup(breweryID: string) {
+export async function breweryLookup(breweryID: string) {
 	return await pool.query(
 		"SELECT name, id, location, date_of_founding, date_created, date_updated, author_id FROM breweries WHERE id = $1",
 		[breweryID]
