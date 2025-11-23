@@ -1,0 +1,9 @@
+POST http://localhost:3005/favorites/ HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImYzYjdlMjJmLTEwYmItNGZlMy04NmQ3LWZjOWMxOTY4ZTM4OSIsImlhdCI6MTc2Mzg5NDA3NSwiZXhwIjoxNzYzODk3Njc1fQ.KLn34fJugcoGEtZ1iAi-oaQoZQD8H7rhkOnyJCoJybQ
+
+{
+	"table": "beers",
+	"target_id": "12a84a95-866a-4a0b-ad08-3c9ecc68b63e"
+
+}
