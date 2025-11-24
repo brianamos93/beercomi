@@ -6,12 +6,16 @@ import fs from "fs";
 import path from "path";
 import { FileFilterCallback } from "multer";
 import sharp from "sharp";
-import { validationHandler } from "../utils/validationMiddleware";
-import { BeerSchemaBase, EditBeerSchema } from "../schemas/beerSchemas";
+import {
+	BeerSchemaBase,
+	EditBeerSchema,
+} from "../schemas/beerSchemas";
 import { CreateReviewSchema, EditReviewSchema } from "../schemas/reviewSchemas";
-import { querySchema } from "../schemas/querySchema";
+import { querySchema, QueryType } from "../schemas/querySchema";
 const { authenticationHandler } = require("../utils/middleware");
 import express from "express";
+import validate from "express-zod-safe";
+import { idParamSchema } from "../schemas/generalSchemas";
 
 const router = Router();
 
@@ -137,13 +141,12 @@ async function photoLookup(photoId: string) {
 
 router.get(
 	"/",
-	validationHandler(querySchema),
 	express.json(),
-	async (req: Request, res: Response) => {
+	validate({ query: querySchema }),
+	async (req: Request<any, any, any, QueryType>, res: Response) => {
 		try {
-			const page = parseInt(req.query.page as string) || 1;
-			const limit = parseInt(req.query.limit as string) || 10;
-			const offset = (page - 1) * limit;
+			const limit = req.query.limit || 10;
+			const offset = req.query.offset || 0;
 			const mainQuery = `
 			SELECT 
 			beers.id, 
@@ -207,20 +210,19 @@ router.get("/list", express.json(), async (req: Request, res: Response) => {
 });
 
 router.get(
-  "/:id",
-  validationHandler(querySchema),
-  express.json(),
-  async (req: Request, res: Response) => {
-    const beerId = req.params.id;
+	"/:id",
+	express.json(),
+	validate({ query: querySchema }),
+	async (req: Request<any, any, any, QueryType>, res: Response) => {
+		const beerId = req.params.id;
 
-    // Pagination input
-    const limit = Number(req.query.limit) || 10;
-    const offset = Number(req.query.offset) || 0;
+		// Pagination input
+		const limit = Number(req.query.limit) || 10;
+		const offset = Number(req.query.offset) || 0;
 
-    try {
-
-      const beerResult = await pool.query(
-        `SELECT
+		try {
+			const beerResult = await pool.query(
+				`SELECT
           beers.id,
           beers.name,
           beers.brewery_id,
@@ -240,19 +242,18 @@ router.get(
         LEFT JOIN breweries ON beers.brewery_id = breweries.id
         LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
         WHERE beers.id = $1`,
-        [beerId]
-      );
+				[beerId]
+			);
 
-      if (beerResult.rows.length === 0) {
-        return res.status(404).json({ error: "Beer not found" });
-      }
+			if (beerResult.rows.length === 0) {
+				return res.status(404).json({ error: "Beer not found" });
+			}
 
-      const beer = beerResult.rows[0];
-      beer.abv = beer.abv / 10; 
+			const beer = beerResult.rows[0];
+			beer.abv = beer.abv / 10;
 
-
-      const reviewsResult = await pool.query(
-        `SELECT
+			const reviewsResult = await pool.query(
+				`SELECT
           beer_reviews.id,
           beer_reviews.rating,
           beer_reviews.review,
@@ -282,39 +283,39 @@ router.get(
         WHERE beer_reviews.beer_id = $1
         ORDER BY beer_reviews.date_created DESC
         LIMIT $2 OFFSET $3`,
-        [beerId, limit, offset]
-      );
+				[beerId, limit, offset]
+			);
 
-      const totalResult = await pool.query(
-        `SELECT COUNT(*) 
+			const totalResult = await pool.query(
+				`SELECT COUNT(*) 
          FROM beer_reviews 
          WHERE beer_id = $1`,
-        [beerId]
-      );
+				[beerId]
+			);
 
-      const totalReviews = Number(totalResult.rows[0].count);
+			const totalReviews = Number(totalResult.rows[0].count);
 
-      res.json({
-        ...beer,
-        reviews: reviewsResult.rows,
-        pagination: {
-          totalItems: totalReviews,
-          limit,
-          offset,
-        },
-      });
-    } catch (error) {
-      console.error("Error fetching beer", error);
-      res.status(500).json({ error: "Error fetching beer" });
-    }
-  }
+			res.json({
+				...beer,
+				reviews: reviewsResult.rows,
+				pagination: {
+					totalItems: totalReviews,
+					limit,
+					offset,
+				},
+			});
+		} catch (error) {
+			console.error("Error fetching beer", error);
+			res.status(500).json({ error: "Error fetching beer" });
+		}
+	}
 );
 
 router.post(
 	"/",
 	authenticationHandler,
 	upload.single("cover_image"),
-	validationHandler(BeerSchemaBase),
+	validate({ body: BeerSchemaBase }),
 	async (req: Request, res: Response) => {
 		for (const key in req.body) {
 			if (typeof req.body[key] === "string") {
@@ -391,43 +392,48 @@ router.post(
 	}
 );
 
-router.delete("/:id", express.json(), async (req: Request, res: Response) => {
-	const beerID = req.params.id;
-	const beercheck = await beerlookup(beerID);
-	if (beercheck.rowCount == 0) {
-		return res.status(401).json({ error: "beer does not exist" });
-	}
-	const decodedToken = decodeToken(req);
-	if (!decodedToken.id) {
-		return res.status(401).json({ error: "token invalid" });
-	}
+router.delete(
+	"/:id",
+	express.json(),
+	validate({ params: idParamSchema }),
+	async (req: Request, res: Response) => {
+		const beerID = req.params.id;
+		const beercheck = await beerlookup(beerID);
+		if (beercheck.rowCount == 0) {
+			return res.status(401).json({ error: "beer does not exist" });
+		}
+		const decodedToken = decodeToken(req);
+		if (!decodedToken.id) {
+			return res.status(401).json({ error: "token invalid" });
+		}
 
-	const user = await tokenUser(decodedToken);
-	if (user.rows[0].role !== "admin") {
-		return res.status(400).json({ error: "User not authorized" });
-	}
+		const user = await tokenUser(decodedToken);
+		if (user.rows[0].role !== "admin") {
+			return res.status(400).json({ error: "User not authorized" });
+		}
 
-	const beerCoverImageRes = await beerCoverImageLookup(beerID);
-	const coverImagePathAndFile = beerCoverImageRes.rows[0].cover_image;
-	const filePath = path.join(__dirname, "..", coverImagePathAndFile);
-	if (fs.existsSync(filePath)) {
-		fs.unlinkSync(filePath);
-	}
+		const beerCoverImageRes = await beerCoverImageLookup(beerID);
+		const coverImagePathAndFile = beerCoverImageRes.rows[0].cover_image;
+		const filePath = path.join(__dirname, "..", coverImagePathAndFile);
+		if (fs.existsSync(filePath)) {
+			fs.unlinkSync(filePath);
+		}
 
-	try {
-		await pool.query("DELETE FROM beers WHERE id = $1", [beerID]);
-		res.sendStatus(200);
-	} catch (error) {
-		console.error("Error deleting beer", error);
-		res.status(500).json({ error: "Error deleting beer" });
+		try {
+			await pool.query("DELETE FROM beers WHERE id = $1", [beerID]);
+			res.sendStatus(200);
+		} catch (error) {
+			console.error("Error deleting beer", error);
+			res.status(500).json({ error: "Error deleting beer" });
+		}
 	}
-});
+);
 
 router.put(
 	"/:id",
 	authenticationHandler,
 	upload.single("cover_image"),
-	validationHandler(EditBeerSchema),
+	validate({body: EditBeerSchema}),
 	async (req: Request, res: Response) => {
 		const beerID = req.params.id;
 		const {
@@ -524,6 +530,7 @@ router.put(
 router.get(
 	"/review/:id",
 	express.json(),
+	validate({params: idParamSchema}),
 	async (req: Request, res: Response) => {
 		const reviewId = req.params.id;
 		try {
@@ -586,7 +593,7 @@ router.post(
 	"/review/",
 	authenticationHandler,
 	upload.array("photos", 4),
-	validationHandler(CreateReviewSchema),
+	validate({body: CreateReviewSchema}),
 	async (req: Request, res: Response) => {
 		const client = await pool.connect();
 		const { rating, review, beer_id } = req.body;
@@ -666,7 +673,7 @@ router.put(
 	"/review/:id",
 	authenticationHandler,
 	upload.array("photos", 4),
-	validationHandler(EditReviewSchema),
+	validate({body: EditReviewSchema}),
 	async (req: Request, res: Response) => {
 		const reviewID = req.params.id;
 		const client = await pool.connect();
@@ -797,6 +804,7 @@ router.delete(
 	"/review/photo/:id",
 	authenticationHandler,
 	express.json(),
+	validate({params: idParamSchema}),
 	async (req: Request, res: Response) => {
 		const photoId = req.params.id;
 		const photoCheck = await photoLookup(photoId);
@@ -829,6 +837,7 @@ router.delete(
 	"/review/:id",
 	authenticationHandler,
 	express.json(),
+	validate({params: idParamSchema}),
 	async (req: Request, res: Response) => {
 		const reviewID = req.params.id;
 		const reviewcheck = await reviewLookup(reviewID);

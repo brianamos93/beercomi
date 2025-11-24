@@ -1,17 +1,25 @@
 import { Router, Request, Response } from "express";
 import pool from "../utils/config";
-const bcrypt = require('bcrypt')
-const jwt = require('jsonwebtoken')
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 import { tokenUser, decodeToken } from "../utils/userlib";
-const multer = require('multer')
-import fs from 'fs';
-import path from 'path';
+const multer = require("multer");
+import fs from "fs";
+import path from "path";
 import { FileFilterCallback } from "multer";
 import sharp from "sharp";
-const express = require('express')
+import validate from "express-zod-safe";
+import {
+	LoginSchema,
+	PasswordChangeSchema,
+	profileImageSchema,
+	RoleInputSchema,
+	SignupSchema,
+} from "../schemas/userSchemas";
+import { idParamSchema } from "../schemas/generalSchemas";
+const express = require("express");
 
 const { authenticationHandler } = require("../utils/middleware");
-
 
 const getRecentActivityOneUser = async (userId: string) => {
 	try {
@@ -21,21 +29,22 @@ const getRecentActivityOneUser = async (userId: string) => {
 			WHERE table_schema = 'public'
 			AND column_name IN ('date_updated', 'author_id')
 			GROUP BY table_name
-			HAVING COUNT(DISTINCT column_name) = 2;`
+			HAVING COUNT(DISTINCT column_name) = 2;`;
 
-		const tableRes = await pool.query(tableQuery)
-		const tables = tableRes.rows.map(row => row.table_name)
-		console.log(tables)
+		const tableRes = await pool.query(tableQuery);
+		const tables = tableRes.rows.map((row) => row.table_name);
+		console.log(tables);
 
 		if (tables.length === 0) {
-			return []
+			return [];
 		}
 
 		const sql = `
 		SELECT *
 		FROM (
-			${tables.map(
-			table => `
+			${tables
+				.map(
+					(table) => `
 				SELECT 
 				'${table}' AS table_name,
 				${table}.id::TEXT AS id,
@@ -43,377 +52,491 @@ const getRecentActivityOneUser = async (userId: string) => {
 				FROM ${table}
 				WHERE author_id = '${userId}'
 			`
-			).join(" UNION ALL ")}
+				)
+				.join(" UNION ALL ")}
 		) AS combined
 		ORDER BY date_updated DESC
 		LIMIT 10
-`
-		const result = await pool.query(sql)
-		return result.rows
+`;
+		const result = await pool.query(sql);
+		return result.rows;
 	} catch (error) {
-		console.log(error)
-		return "Error"	
+		console.log(error);
+		return "Error";
 	}
-}
+};
 
-const uploadPath = path.join(__dirname, '..', 'uploads', 'users');
+const uploadPath = path.join(__dirname, "..", "uploads", "users");
 if (!fs.existsSync(uploadPath)) {
-  fs.mkdirSync(uploadPath);
+	fs.mkdirSync(uploadPath);
 }
 
-const fileFilter = (_req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
-  const allowedTypes = ['image/jpeg', 'image/png'];
-  if (allowedTypes.includes(file.mimetype)) cb(null, true);
-  else cb(new Error('Only .jpeg and .png files are allowed'));
+const fileFilter = (
+	_req: Request,
+	file: Express.Multer.File,
+	cb: FileFilterCallback
+) => {
+	const allowedTypes = ["image/jpeg", "image/png"];
+	if (allowedTypes.includes(file.mimetype)) cb(null, true);
+	else cb(new Error("Only .jpeg and .png files are allowed"));
 };
 
 const upload = multer({ storage: multer.memoryStorage(), fileFilter });
 
-
 const router = Router();
 
 interface User {
-	id: number,
-	display_name: string,
-	email: string,
-	password: string,
-	role: string,
-	profile_img_url: string,
-	present_location: string,
-	introduction: string,
+	id: number;
+	display_name: string;
+	email: string;
+	password: string;
+	role: string;
+	profile_img_url: string;
+	present_location: string;
+	introduction: string;
 }
 
 export async function userIdGet(userId: string) {
-	return await pool.query("SELECT id, role FROM users WHERE id = $1", [userId])
+	return await pool.query("SELECT id, role FROM users WHERE id = $1", [userId]);
 }
 
-router.post("/login", express.json(), async (req: Request, res: Response) => {
-	const { email, password } = req.body
-	try {
-		const user = await pool.query("SELECT * FROM users WHERE email = $1", [email])
+router.post(
+	"/login",
+	express.json(),
+	validate({ body: LoginSchema }),
+	async (req: Request, res: Response) => {
+		const { email, password } = req.body;
+		try {
+			const user = await pool.query("SELECT * FROM users WHERE email = $1", [
+				email,
+			]);
 
-		if (user.rowCount === 0) {
-			return res.status(401).json({
-				error: "invalid email or password"
-			})
+			if (user.rowCount === 0) {
+				return res.status(401).json({
+					error: "invalid email or password",
+				});
+			}
+			const passwordCorrect =
+				user === null
+					? false
+					: await bcrypt.compare(password, user.rows[0].password);
+
+			if (!(user && passwordCorrect)) {
+				return res.status(401).json({
+					error: "invalid email or password",
+				});
+			}
+
+			const userForToken = {
+				id: user.rows[0].id,
+			};
+
+			const token = jwt.sign(userForToken, process.env.SECRET, {
+				expiresIn: 60 * 60,
+			});
+			res.status(200).send({ token, userForToken });
+		} catch (error) {
+			console.error("Error loginning in", error);
+			res.status(500).json({ error: "Error logging in" });
 		}
-		const passwordCorrect = user === null
-		? false: await bcrypt.compare(password, user.rows[0].password)
-
-		if (!(user && passwordCorrect)) {
-			return res.status(401).json({
-				error: "invalid email or password"
-			})
-		}
-
-		const userForToken = {
-			id: user.rows[0].id
-		}
-
-		const token = jwt.sign(userForToken,
-			process.env.SECRET,
-			{ expiresIn: 60*60 }
-		)
-		res
-		.status(200)
-		.send({token, userForToken})
-	} catch (error) {
-		console.error("Error loginning in", error)
-		res.status(500).json({ error: "Error logging in" })
 	}
-})
+);
 
-router.post("/profile/img/upload", authenticationHandler, upload.single('image'), async (req: Request, res: Response) => {
-	try {
-		if (!req.file) return res.status(400).json({ error: "No file uploaded"})
-			const decodedToken = decodeToken(req)
-			const user = await tokenUser(decodedToken)
-			const display_name = user.rows[0].display_name
-			const ext: string = req.file && req.file.originalname ? path.extname(req.file.originalname) : '';
-			const avatardir = user.rows[0].profile_img_url
-			const newFileName = `${display_name}-${Date.now()}${ext}`
-			const uploadFilePathAndFile = path.join(uploadPath, newFileName)
+router.post(
+	"/profile/img/upload",
+	authenticationHandler,
+	upload.single("image"),
+	validate({ body: profileImageSchema }),
+	async (req: Request, res: Response) => {
+		try {
+			if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+			const decodedToken = decodeToken(req);
+			const user = await tokenUser(decodedToken);
+			const display_name = user.rows[0].display_name;
+			const ext: string =
+				req.file && req.file.originalname
+					? path.extname(req.file.originalname)
+					: "";
+			const avatardir = user.rows[0].profile_img_url;
+			const newFileName = `${display_name}-${Date.now()}${ext}`;
+			const uploadFilePathAndFile = path.join(uploadPath, newFileName);
 			if (avatardir !== null) {
-				const oldFilePath = path.join(__dirname, "..", "uploads", avatardir)
+				const oldFilePath = path.join(__dirname, "..", "uploads", avatardir);
 				if (fs.existsSync(oldFilePath)) {
-					fs.unlinkSync(oldFilePath)
+					fs.unlinkSync(oldFilePath);
 				}
 			}
-			await sharp(req.file.buffer).resize(200,200).toFile(uploadFilePathAndFile)
-			const relativeUploadFilePathAndFile = "/uploads/users/" + newFileName
-			const userId = user.rows[0].id
-			await pool.query(`
+			await sharp(req.file.buffer)
+				.resize(200, 200)
+				.toFile(uploadFilePathAndFile);
+			const relativeUploadFilePathAndFile = "/uploads/users/" + newFileName;
+			const userId = user.rows[0].id;
+			await pool.query(
+				`
 				UPDATE users
 				SET profile_img_url = $1
 				WHERE id = $2
 				RETURNING *;
-				`, [relativeUploadFilePathAndFile, userId])
-				res.status(200).json({message: "Upload Sucessful"})
+				`,
+				[relativeUploadFilePathAndFile, userId]
+			);
+			res.status(200).json({ message: "Upload Sucessful" });
 		} catch (error) {
-			console.log(error)
-			res.status(401).json({error: "Error uploading avatar."})
+			console.log(error);
+			res.status(401).json({ error: "Error uploading avatar." });
 		}
-})
+	}
+);
 
-router.delete("/profile/img", authenticationHandler, async(req: Request, res: Response) => {
-    const decodedToken = decodeToken(req)
-    if (!decodedToken.id) return res.status(401).json({ error: 'token invalid' })
-    const user = await tokenUser(decodedToken)
-    const userId = user.rows[0].id
-    const avatardir = user.rows[0].profile_img_url
-    if (!avatardir) return res.status(404).json({message: "Avatar Not Found."})
-    const oldFilePath = path.join(__dirname, "..", "uploads", avatardir)
-    if (fs.existsSync(oldFilePath)) {
-        fs.unlinkSync(oldFilePath)
-        try {
-            await pool.query(`
+router.delete(
+	"/profile/img",
+	authenticationHandler,
+	async (req: Request, res: Response) => {
+		const decodedToken = decodeToken(req);
+		if (!decodedToken.id)
+			return res.status(401).json({ error: "token invalid" });
+		const user = await tokenUser(decodedToken);
+		const userId = user.rows[0].id;
+		const avatardir = user.rows[0].profile_img_url;
+		if (!avatardir)
+			return res.status(404).json({ message: "Avatar Not Found." });
+		const oldFilePath = path.join(__dirname, "..", "uploads", avatardir);
+		if (fs.existsSync(oldFilePath)) {
+			fs.unlinkSync(oldFilePath);
+			try {
+				await pool.query(
+					`
                 UPDATE users
                 SET profile_img_url = null
                 WHERE id = $1
                 RETURNING *;
-            `, [userId])
-            return res.status(200).json({message: "Avatar Successfully Deleted."})
-        } catch (error) {
-            return res.status(500).json({error})
-        }
-    } else {
-        // File does not exist, but clear DB reference anyway
-        await pool.query(`
+            `,
+					[userId]
+				);
+				return res
+					.status(200)
+					.json({ message: "Avatar Successfully Deleted." });
+			} catch (error) {
+				return res.status(500).json({ error });
+			}
+		} else {
+			// File does not exist, but clear DB reference anyway
+			await pool.query(
+				`
             UPDATE users
             SET profile_img_url = null
             WHERE id = $1
             RETURNING *;
-        `, [userId])
-        return res.json({message: "Avatar reference removed, file not found."})
-    }
-})
+        `,
+				[userId]
+			);
+			return res.json({ message: "Avatar reference removed, file not found." });
+		}
+	}
+);
 
 router.get("/users", express.json(), async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT users.id, users.display_name, users.role, users.profile_img_url, users.present_location, users.introduction FROM users")
-		const users: User[] = result.rows
-		res.json(users)
-	} catch (error) {
-		console.error("Error fetching users", error)
-		res.status(500).json({ error: "Error fetching users" })
-	}
-})
-
-router.get("/users/beers", express.json(), async (req: Request, res: Response) => {
-	try {
-		const result = await pool.query("SELECT users.id, users.display_name, users.profile_img_url, beers.name, beers.description FROM users INNER JOIN beers ON users.id = beers.author")
-		const users: User[] = result.rows
-		res.json(users)
-	} catch (error) {
-		console.error("Error fetching users", error)
-		res.status(500).json({ error: "Error fetching users" })
-	}
-})
-
-router.get("/users/breweries", express.json(), async (req: Request, res: Response) => {
-	try {
-		const result = await pool.query("SELECT users.id, users.display_name, users.profile_img_url, breweries.name, breweries.description FROM users INNER JOIN breweries ON users.id = brewery.author")
-		const users: User[] = result.rows
-		res.json(users)
-	} catch (error) {
-		console.error("Error fetching users", error)
-		res.status(500).json({ error: "Error fetching users" })
-	}
-})
-
-router.post("/signup", express.json(), async ( req: Request, res: Response ) => {
-	const { display_name, email, password } = req.body
-
-	const saltRounds = 10
-	const passwordHash = await bcrypt.hash(password, saltRounds)
-
-	try {
-	const emailCheck = await pool.query("SELECT id FROM users WHERE email = $1", [email])
-	const display_nameCheck = await pool.query("SELECT id FROM users WHERE display_name = $1", [display_name])
-
-	if (emailCheck.rowCount != 0) {
-		return res.status(500).json({ error: "Email invalid or in use" })
-	}
-	if (display_nameCheck.rowCount != 0) {
-		return res.status(500).json({ error: "Display Name not valid or in use"})
-	}
 		const result = await pool.query(
-			"INSERT INTO users(email, password, display_name) VALUES($1, $2, $3) RETURNING *", [email, passwordHash, display_name]
-		)
-		const createdUser: User = result.rows[0]
-		res.status(201).json(createdUser)
+			"SELECT users.id, users.display_name, users.role, users.profile_img_url, users.present_location, users.introduction FROM users"
+		);
+		const users: User[] = result.rows;
+		res.json(users);
 	} catch (error) {
-		console.error("Error signing up", error);
-		res.status(500).json({ error: "Error signing up" });
+		console.error("Error fetching users", error);
+		res.status(500).json({ error: "Error fetching users" });
 	}
-})
+});
 
-router.get("/user/", express.json(), async(req: Request, res: Response) => {
+router.get(
+	"/users/beers",
+	express.json(),
+	async (req: Request, res: Response) => {
+		try {
+			const result = await pool.query(
+				"SELECT users.id, users.display_name, users.profile_img_url, beers.name, beers.description FROM users INNER JOIN beers ON users.id = beers.author"
+			);
+			const users: User[] = result.rows;
+			res.json(users);
+		} catch (error) {
+			console.error("Error fetching users", error);
+			res.status(500).json({ error: "Error fetching users" });
+		}
+	}
+);
+
+router.get(
+	"/users/breweries",
+	express.json(),
+	async (req: Request, res: Response) => {
+		try {
+			const result = await pool.query(
+				"SELECT users.id, users.display_name, users.profile_img_url, breweries.name, breweries.description FROM users INNER JOIN breweries ON users.id = brewery.author"
+			);
+			const users: User[] = result.rows;
+			res.json(users);
+		} catch (error) {
+			console.error("Error fetching users", error);
+			res.status(500).json({ error: "Error fetching users" });
+		}
+	}
+);
+
+router.post(
+	"/signup",
+	express.json(),
+	validate({ body: SignupSchema }),
+	async (req: Request, res: Response) => {
+		const { display_name, email, password } = req.body;
+
+		const saltRounds = 10;
+		const passwordHash = await bcrypt.hash(password, saltRounds);
+
+		try {
+			const emailCheck = await pool.query(
+				"SELECT id FROM users WHERE email = $1",
+				[email]
+			);
+			const display_nameCheck = await pool.query(
+				"SELECT id FROM users WHERE display_name = $1",
+				[display_name]
+			);
+
+			if (emailCheck.rowCount != 0) {
+				return res.status(500).json({ error: "Email invalid or in use" });
+			}
+			if (display_nameCheck.rowCount != 0) {
+				return res
+					.status(500)
+					.json({ error: "Display Name not valid or in use" });
+			}
+			const result = await pool.query(
+				"INSERT INTO users(email, password, display_name) VALUES($1, $2, $3) RETURNING *",
+				[email, passwordHash, display_name]
+			);
+			const createdUser: User = result.rows[0];
+			res.status(201).json(createdUser);
+		} catch (error) {
+			console.error("Error signing up", error);
+			res.status(500).json({ error: "Error signing up" });
+		}
+	}
+);
+
+router.get("/user/", express.json(), async (req: Request, res: Response) => {
 	try {
-		const decodedToken = decodeToken(req)
+		const decodedToken = decodeToken(req);
 		if (!decodedToken.id) {
-	 		return res.status(401).json({ error: 'token invalid'})
-	}
-	const userData = await tokenUser(decodedToken)
-	const user = userData.rows[0]
-	return res.json(user)
+			return res.status(401).json({ error: "token invalid" });
+		}
+		const userData = await tokenUser(decodedToken);
+		const user = userData.rows[0];
+		return res.json(user);
 	} catch (error) {
-		res.json({error: "Error"})
-	}
-
-})
-
-router.get("/user/:id", express.json(), async (req: Request, res: Response ) => {
-	const userID = req.params.id
-	  try {
-		const result = await pool.query("SELECT users.id, users.display_name, users.profile_img_url, users.present_location, users.introduction, users.role FROM users WHERE users.id = $1 ", [userID]);
-		const user: User = result.rows[0];
-		res.json(user);
-	  } catch (error) {
-		console.error("Error fetching user", error);
-		res.status(500).json({ error: "Error fetching user" });
-	  }
-})
-
-router.delete("/user/:id", express.json(), async (req: Request, res: Response) => {
-	const userID = req.params.id
-	const decodedToken = decodeToken(req)
-	if (!decodedToken.id) {
-	 return res.status(401).json({ error: 'token invalid'})
-	}
-	const user = await tokenUser(decodedToken)
-	const userDataResult = await userIdGet(userID)
-	if (user.rows[0].id !== userDataResult.rows[0].id && user.rows[0].role !== "admin") {
-		return res.status(400).json({ error: "User not authorized" })
-	}
-	try {
-	  await pool.query("DELETE FROM users WHERE id = $1", [userID]);
-	  res.sendStatus(200);
-	} catch (error) {
-	  console.error("Error deleting user", error);
-	  res.status(500).json({ error: "Error deleting user" });
-	}
-  });
-
-router.put("/user/:id", authenticationHandler, express.json(), async (req: Request, res: Response) => {
-	const userID = req.params.id
-	const { password } = req.body;
-
-	const saltRounds = 10
-	const passwordHash = await bcrypt.hash(password, saltRounds)
-
-	const decodedToken = decodeToken(req)
-	if (!decodedToken.id) {
-	 return res.status(401).json({ error: 'token invalid'})
-	}
-	const user = await tokenUser(decodedToken)
-	const userDataResult = await userIdGet(userID)
-	if (user.rows[0].id !== userDataResult.rows[0].id || userDataResult.rows[0].role !== "admin") {
-		return res.status(400).json({ error: "User not authorized" })
-	}
-
-	try {
-		await pool.query("UPDATE users SET password = $1 WHERE id = $2", [
-			passwordHash,
-			userID,
-     	]);
-     	res.sendStatus(200);
-   	} catch (error) {
-	console.error("Error updating todo", error);
-	res.sendStatus(500).json({ error: "Error updating todo" });
+		console.log(error);
+		res.json({ error: "Error" });
 	}
 });
 
-router.put("/user/:id/role", express.json(), async (req: Request, res: Response) => {
-	const userID = req.params.id
-	const { role } = req.body;
+router.get(
+	"/user/:id",
+	express.json(),
+	validate({ params: idParamSchema }),
+	async (req: Request, res: Response) => {
+		const userID = req.params.id;
+		try {
+			const result = await pool.query(
+				"SELECT users.id, users.display_name, users.profile_img_url, users.present_location, users.introduction, users.role FROM users WHERE users.id = $1 ",
+				[userID]
+			);
+			const user: User = result.rows[0];
+			res.json(user);
+		} catch (error) {
+			console.error("Error fetching user", error);
+			res.status(500).json({ error: "Error fetching user" });
+		}
+	}
+);
 
-	const decodedToken = decodeToken(req)
-	if (!decodedToken.id) {
-	 return res.status(401).json({ error: 'token invalid'})
+router.delete(
+	"/user/:id",
+	express.json(),
+	validate({params: idParamSchema}),
+	async (req: Request, res: Response) => {
+		const userID = req.params.id;
+		const decodedToken = decodeToken(req);
+		if (!decodedToken.id) {
+			return res.status(401).json({ error: "token invalid" });
+		}
+		const user = await tokenUser(decodedToken);
+		const userDataResult = await userIdGet(userID);
+		if (
+			user.rows[0].id !== userDataResult.rows[0].id &&
+			user.rows[0].role !== "admin"
+		) {
+			return res.status(400).json({ error: "User not authorized" });
+		}
+		try {
+			await pool.query("DELETE FROM users WHERE id = $1", [userID]);
+			res.sendStatus(200);
+		} catch (error) {
+			console.error("Error deleting user", error);
+			res.status(500).json({ error: "Error deleting user" });
+		}
 	}
-	const userDataResult = await userIdGet(userID)
-	if (userDataResult.rows[0].role !== "admin") {
-		return res.status(400).json({ error: "User not authorized" })
-	}
+);
 
-	try {
-		await pool.query("UPDATE users SET role = $1 WHERE id = $2", [
-			role,
-			userID,
-     	]);
-     	res.sendStatus(200);
-   	} catch (error) {
-	console.error("Error updating todo", error);
-	res.sendStatus(500).json({ error: "Error updating todo" });
-	}
-});
+router.put(
+	"/user/:id",
+	authenticationHandler,
+	express.json(),
+	validate({params: idParamSchema, body: PasswordChangeSchema}),
+	async (req: Request, res: Response) => {
+		const userID = req.params.id;
+		const { password } = req.body;
 
-router.put("/verified/:id", express.json(), async (req: Request, res: Response) => {
-	const userID = req.params.id
-	const usercheck = await userIdGet(userID)
- 
-	if (usercheck.rowCount == 0) {
-	 return res.status(401).json({ error: 'user does not exist'})
-	}
- 
-	const decodedToken = decodeToken(req)
-	if (!decodedToken.id) {
-	 return res.status(401).json({ error: 'token invalid'})
-	}
-  
-	const user = await tokenUser(decodedToken)
- 
-	if (user.rows[0].role !== "admin") {
-	 return res.status(400).json({ error: "User not authorized" })
-	}
- 
-	try {
-	  await pool.query("UPDATE users SET verification = TRUE WHERE id = $1", [userID]);
-	  res.sendStatus(200);
-	} catch (error) {
-		console.log(error)
-	  res.sendStatus(500).json({ error: "Error updating users" });
-	}
- });
+		const saltRounds = 10;
+		const passwordHash = await bcrypt.hash(password, saltRounds);
 
+		const decodedToken = decodeToken(req);
+		if (!decodedToken.id) {
+			return res.status(401).json({ error: "token invalid" });
+		}
+		const user = await tokenUser(decodedToken);
+		const userDataResult = await userIdGet(userID);
+		if (
+			user.rows[0].id !== userDataResult.rows[0].id ||
+			userDataResult.rows[0].role !== "admin"
+		) {
+			return res.status(400).json({ error: "User not authorized" });
+		}
 
- router.put("/unverified/:id", express.json(), async (req: Request, res: Response) => {
-	const userID = req.params.id
-	const usercheck = await userIdGet(userID)
- 
-	if (usercheck.rowCount == 0) {
-	 return res.status(401).json({ error: 'user does not exist'})
+		try {
+			await pool.query("UPDATE users SET password = $1 WHERE id = $2", [
+				passwordHash,
+				userID,
+			]);
+			res.sendStatus(200);
+		} catch (error) {
+			console.error("Error updating todo", error);
+			res.sendStatus(500).json({ error: "Error updating todo" });
+		}
 	}
- 
-	const decodedToken = decodeToken(req)
-	if (!decodedToken.id) {
-	 return res.status(401).json({ error: 'token invalid'})
-	}
-  
-	const user = await tokenUser(decodedToken)
- 
-	if (user.rows[0].role !== "admin") {
-	 return res.status(400).json({ error: "User not authorized" })
-	}
- 
-	try {
-	  await pool.query("UPDATE users SET verification = FALSE WHERE id = $1", [userID]);
-	  res.sendStatus(200);
-	} catch (error) {
-	  res.sendStatus(500).json({ error: "Error updating user" });
-	}
- });
+);
 
- router.get("/user/:id/recentactivity", express.json(), async(req: Request, res: Response) => {
-	const userID = req.params.id
-	try {
-		const entries = await getRecentActivityOneUser(userID)
-		res.json(entries)
-	} catch (error) {
-		console.log("Error fetching recent entries:", error)
-		res.status(500).json({ error: "Internal Server Error"})
-	}
-})
+router.put(
+	"/user/:id/role",
+	express.json(),
+	validate({params: idParamSchema, body: RoleInputSchema}),
+	async (req: Request, res: Response) => {
+		const userID = req.params.id;
+		const { role } = req.body;
 
-export default router
+		const decodedToken = decodeToken(req);
+		if (!decodedToken.id) {
+			return res.status(401).json({ error: "token invalid" });
+		}
+		const userDataResult = await userIdGet(userID);
+		if (userDataResult.rows[0].role !== "admin") {
+			return res.status(400).json({ error: "User not authorized" });
+		}
+
+		try {
+			await pool.query("UPDATE users SET role = $1 WHERE id = $2", [
+				role,
+				userID,
+			]);
+			res.sendStatus(200);
+		} catch (error) {
+			console.error("Error updating todo", error);
+			res.sendStatus(500).json({ error: "Error updating todo" });
+		}
+	}
+);
+
+router.put(
+	"/verified/:id",
+	express.json(),
+	validate({params: idParamSchema}),
+	async (req: Request, res: Response) => {
+		const userID = req.params.id;
+		const usercheck = await userIdGet(userID);
+
+		if (usercheck.rowCount == 0) {
+			return res.status(401).json({ error: "user does not exist" });
+		}
+
+		const decodedToken = decodeToken(req);
+		if (!decodedToken.id) {
+			return res.status(401).json({ error: "token invalid" });
+		}
+
+		const user = await tokenUser(decodedToken);
+
+		if (user.rows[0].role !== "admin") {
+			return res.status(400).json({ error: "User not authorized" });
+		}
+
+		try {
+			await pool.query("UPDATE users SET verification = TRUE WHERE id = $1", [
+				userID,
+			]);
+			res.sendStatus(200);
+		} catch (error) {
+			console.log(error);
+			res.sendStatus(500).json({ error: "Error updating users" });
+		}
+	}
+);
+
+router.put(
+	"/unverified/:id",
+	express.json(),
+	validate({params: idParamSchema}),
+	async (req: Request, res: Response) => {
+		const userID = req.params.id;
+		const usercheck = await userIdGet(userID);
+
+		if (usercheck.rowCount == 0) {
+			return res.status(401).json({ error: "user does not exist" });
+		}
+
+		const decodedToken = decodeToken(req);
+		if (!decodedToken.id) {
+			return res.status(401).json({ error: "token invalid" });
+		}
+
+		const user = await tokenUser(decodedToken);
+
+		if (user.rows[0].role !== "admin") {
+			return res.status(400).json({ error: "User not authorized" });
+		}
+
+		try {
+			await pool.query("UPDATE users SET verification = FALSE WHERE id = $1", [
+				userID,
+			]);
+			res.sendStatus(200);
+		} catch (error) {
+			res.sendStatus(500).json({ error: "Error updating user" });
+		}
+	}
+);
+
+router.get(
+	"/user/:id/recentactivity",
+	express.json(),
+	validate({params: idParamSchema}),
+	async (req: Request, res: Response) => {
+		const userID = req.params.id;
+		try {
+			const entries = await getRecentActivityOneUser(userID);
+			res.json(entries);
+		} catch (error) {
+			console.log("Error fetching recent entries:", error);
+			res.status(500).json({ error: "Internal Server Error" });
+		}
+	}
+);
+
+export default router;

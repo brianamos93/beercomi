@@ -1,4 +1,4 @@
-import { validationHandler } from "../utils/validationMiddleware";
+import validate from 'express-zod-safe';
 import express from "express";
 import { Router, Request, Response } from "express";
 import {
@@ -30,7 +30,7 @@ router.post(
 	"/",
 	express.json(),
 	authenticationHandler,
-	validationHandler(favoriteInputSchema),
+	validate({body: favoriteInputSchema}),
 	async (req: Request, res: Response) => {
 		const userId = req.user?.id;
 		let query = "";
@@ -76,7 +76,7 @@ router.delete(
 	"/:table/:id",
 	express.json(),
 	authenticationHandler,
-	validationHandler(favoriteDeleteSchema),
+	validate({params: favoriteDeleteSchema}),
 	async (req: Request, res: Response) => {
 		let query = "";
 		if (req.params.table === "beers") {
@@ -116,7 +116,7 @@ router.get(
 	"/:table",
 	express.json(),
 	authenticationHandler,
-	validationHandler(favoriteGetTableSchema),
+	validate({params: favoriteGetTableSchema}),
 	async(req: Request, res: Response) => {
 		let query = ""
 		if (req.params.table === "beers") {

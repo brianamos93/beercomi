@@ -12,7 +12,9 @@ import {
 	BrewerySchemaBase,
 	EditBrewerySchema,
 } from "../schemas/brewerySchemas";
-import { querySchema } from "../schemas/querySchema";
+import { querySchema, QueryType } from "../schemas/querySchema";
+import validate from "express-zod-safe";
+import { idParamSchema } from "../schemas/generalSchemas";
 const { authenticationHandler } = require("../utils/middleware");
 const express = require("express");
 
@@ -23,6 +25,7 @@ declare module "express-serve-static-core" {
 		user?: { id: string; role: string };
 	}
 }
+type Params = { id: string };
 
 interface Brewery {
 	id: number;
@@ -77,13 +80,12 @@ async function breweryCoverImageLookup(breweryID: string) {
 
 router.get(
 	"/",
-	validationHandler(querySchema),
 	express.json(),
-	async (req: Request, res: Response) => {
+	validate({query: querySchema}),
+	async (req: Request<Record<string, never>, unknown, unknown, QueryType>, res: Response) => {
 		try {
-			const page = parseInt(req.query.page as string) || 1;
-			const limit = parseInt(req.query.limit as string) || 10;
-			const offset = (page - 1) * limit;
+			const limit = req.query.limit || 10;
+			const offset = req.query.offset || 0;
 
 			const mainQuery = `
 			SELECT 
@@ -136,12 +138,12 @@ router.get("/list", express.json(), async (req: Request, res: Response) => {
 
 router.get(
 	"/:id",
-	validationHandler(querySchema),
 	express.json(),
-	async (req: Request, res: Response) => {
+	validate({ params: idParamSchema, query: querySchema}),
+	async (req: Request<Params, unknown, unknown, QueryType>, res: Response) => {
 		const breweryId = req.params.id;
-		const limit = Number(req.query.limit) || 10;
-		const offset = Number(req.query.offset) || 0;
+		const limit = req.query.limit || 10;
+		const offset = req.query.offset || 0;
 
 		try {
 			// -------- 1. Fetch brewery data (without beers)
@@ -222,7 +224,7 @@ router.post(
 	"/",
 	authenticationHandler,
 	upload.single("cover_image"),
-	validationHandler(BrewerySchemaBase),
+	validate({body: BrewerySchemaBase}),
 	async (req: Request, res: Response) => {
 		const { name, location, date_of_founding } = req.body;
 
@@ -276,7 +278,7 @@ router.put(
 	"/:id",
 	authenticationHandler,
 	upload.single("cover_image"),
-	validationHandler(EditBrewerySchema),
+	validate({body: EditBrewerySchema, params: idParamSchema}),
 	async (req: Request, res: Response) => {
 		const breweryID = req.params.id;
 		const { name, location, date_of_founding, deleteCoverImage } = req.body;
@@ -363,6 +365,7 @@ router.delete(
 	"/:id",
 	express.json(),
 	authenticationHandler,
+	validate({params: idParamSchema}),
 	async (req: Request, res: Response) => {
 		const breweryID = req.params.id;
 		const brewerycheck = await brewerylookup(breweryID);
