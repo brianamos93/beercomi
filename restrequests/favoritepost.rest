@@ -1,6 +1,6 @@
 POST http://localhost:3005/favorites/ HTTP/1.1
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImYzYjdlMjJmLTEwYmItNGZlMy04NmQ3LWZjOWMxOTY4ZTM4OSIsImlhdCI6MTc2Mzg5NDA3NSwiZXhwIjoxNzYzODk3Njc1fQ.KLn34fJugcoGEtZ1iAi-oaQoZQD8H7rhkOnyJCoJybQ
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjhmMGI1ZjBmLTdhMDUtNDMwNC1hMmFhLWMwYmJlNmI4NTRkMSIsImlhdCI6MTc2Mzk4NTU2NywiZXhwIjoxNzYzOTg5MTY3fQ.xci8Raxv4ez1Upy6DHExzBvaI1FojE9idk8-CEJVoc0
 
 {
 	"table": "beers",
