@@ -212,7 +212,7 @@ router.get("/list", express.json(), async (req: Request, res: Response) => {
 router.get(
 	"/:id",
 	express.json(),
-	validate({ query: querySchema }),
+	validate({ params: idParamSchema, query: querySchema }),
 	async (req: Request<any, any, any, QueryType>, res: Response) => {
 		const beerId = req.params.id;
 
