@@ -11,5 +11,5 @@ export const favoriteDeleteSchema = z.object({
 })
 
 export const favoriteGetTableSchema = z.object({
-	table: z.enum(["beers", "breweries"]),
+	table: z.enum(["beers", "breweries", "all"]),
 })

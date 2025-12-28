@@ -1,4 +1,4 @@
-import validate from 'express-zod-safe';
+import validate from "express-zod-safe";
 import express from "express";
 import { Router, Request, Response } from "express";
 import {
@@ -9,6 +9,7 @@ import {
 import { beerlookup, breweryLookup } from "./beerRoutes";
 const { authenticationHandler } = require("../utils/middleware");
 import pool from "../utils/config";
+import { querySchema, QueryType } from "../schemas/querySchema";
 
 const router = Router();
 
@@ -30,7 +31,7 @@ router.post(
 	"/",
 	express.json(),
 	authenticationHandler,
-	validate({body: favoriteInputSchema}),
+	validate({ body: favoriteInputSchema }),
 	async (req: Request, res: Response) => {
 		const userId = req.user?.id;
 		let query = "";
@@ -76,7 +77,7 @@ router.delete(
 	"/:table/:id",
 	express.json(),
 	authenticationHandler,
-	validate({params: favoriteDeleteSchema}),
+	validate({ params: favoriteDeleteSchema }),
 	async (req: Request, res: Response) => {
 		let query = "";
 		if (req.params.table === "beers") {
@@ -104,39 +105,147 @@ router.delete(
 		}
 		try {
 			const result = await pool.query(query, [req.params.id]);
-			res.status(200).json({ deleted: result.rows[0] })
+			res.status(200).json({ deleted: result.rows[0] });
 		} catch (error) {
-			console.log(error)
-			res.status(500).json({Error: "Server Error"})
+			console.log(error);
+			res.status(500).json({ Error: "Server Error" });
 		}
 	}
 );
 
 router.get(
-	"/:table",
-	express.json(),
-	authenticationHandler,
-	validate({params: favoriteGetTableSchema}),
-	async(req: Request, res: Response) => {
-		let query = ""
-		if (req.params.table === "beers") {
-			query = `
-			SELECT id, beer_id, date_created FROM beers_favorites WHERE user_id = $1
-			`
-		} else if (req.params.table === "breweries") {
-			query = `
-			SELECT id, brewery_id, date_created FROM breweries_favorites WHERE user_id = $1
-			`
-		}
-		try {
-			const result = await pool.query(query,[req.user?.id])
-			res.status(200).json(result.rows)
-		} catch (error) {
-			console.log(error)
-			res.status(500).json({ Error: "Failed to retrieve favorites" });
-		}
+  "/:table",
+  express.json(),
+  authenticationHandler,
+  validate({ params: favoriteGetTableSchema, query: querySchema }),
+  async (req: Request<any, any, any, QueryType>, res: Response) => {
+    const { table } = req.params;
+    const limit = Number(req.query.limit) || 10;
+    const offset = Number(req.query.offset) || 0;
+    const userId = req.user?.id;
 
+    let query = "";
+    let countQuery = "";
 
-	}
-)
+    if (table === "beers") {
+      query = `
+		SELECT 
+		beers_favorites.id, 
+		beers_favorites.beer_id AS target_id, 
+		beers_favorites.date_created, 
+		beers.name AS beer_name, 
+		breweries.name AS brewery_name, 
+		'beers' AS source_table
+		FROM beers_favorites
+		LEFT JOIN beers
+		ON beers_favorites.beer_id = beers.id
+		LEFT JOIN breweries
+		ON beers.brewery_id = breweries.id
+		WHERE user_id = $1
+		ORDER BY date_created DESC
+		LIMIT $2 OFFSET $3;
+      `;
+
+      countQuery = `
+        SELECT COUNT(*) AS total
+        FROM beers_favorites
+        WHERE user_id = $1;
+      `;
+    }
+
+    else if (table === "breweries") {
+      query = `
+        SELECT 
+		breweries_favorites.id, 
+		breweries_favorites.brewery_id AS target_id, 
+		breweries_favorites.date_created, 
+		breweries.name, 
+		'breweries' AS source_table
+        FROM breweries_favorites
+		LEFT JOIN breweries on breweries_favorites.brewery_id = breweries.id
+        WHERE user_id = $1
+        ORDER BY date_created DESC
+        LIMIT $2 OFFSET $3;
+      `;
+
+      countQuery = `
+        SELECT COUNT(*) AS total
+        FROM breweries_favorites
+        WHERE user_id = $1;
+      `;
+    }
+
+    else if (table === "all") {
+      query = `
+		SELECT *
+		FROM 
+		(
+		SELECT 
+		beers_favorites.id, 
+		beers_favorites.beer_id AS target_id, 
+		beers_favorites.date_created, 
+		beers.name, 
+		beers.brewery_id, 
+		breweries.name, 
+		'beers' AS source_table
+        FROM beers_favorites
+		LEFT JOIN beers ON beers_favorites.beer_id = beers.id
+		LEFT JOIN breweries ON beers.brewery_id = breweries.id
+        WHERE user_id = $1
+
+        UNION ALL
+
+        SELECT 
+		breweries_favorites.id, 
+		breweries_favorites.brewery_id AS target_id, 
+		breweries_favorites.date_created, 
+		breweries.name,
+		NULL AS brewery_id, 
+		'breweries' AS source_table, 
+		NULL AS brewery
+        FROM breweries_favorites
+		LEFT JOIN breweries on breweries_favorites.brewery_id = breweries.id
+        WHERE user_id = $1
+		
+		) AS combined
+        
+        ORDER BY date_created DESC
+        LIMIT $2 OFFSET $3;
+      `;
+
+      countQuery = `
+        SELECT 
+          (SELECT COUNT(*) FROM beers_favorites WHERE user_id = $1) +
+          (SELECT COUNT(*) FROM breweries_favorites WHERE user_id = $1)
+          AS total;
+      `;
+    }
+
+    else {
+      return res.status(400).json({ error: "Invalid table selection" });
+    }
+
+    try {
+      const [favoritesResult, countResult] = await Promise.all([
+        pool.query(query, [userId, limit, offset]),
+        pool.query(countQuery, [userId]),
+      ]);
+
+      const totalItems = Number(countResult.rows[0].total);
+
+      res.status(200).json({
+        pagination: {
+          total: totalItems,
+          limit,
+          offset,
+        },
+        data: favoritesResult.rows,
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Failed to retrieve favorites" });
+    }
+  }
+);
+
 export default router;
