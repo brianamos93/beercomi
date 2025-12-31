@@ -4,6 +4,7 @@ import { Router, Request, Response } from "express";
 import {
 	favoriteDeleteSchema,
 	favoriteGetTableSchema,
+	favoriteIdSchema,
 	favoriteInputSchema,
 } from "../schemas/favoriteSchema";
 import { beerlookup, breweryLookup } from "./beerRoutes";
@@ -114,21 +115,21 @@ router.delete(
 );
 
 router.get(
-  "/:table",
-  express.json(),
-  authenticationHandler,
-  validate({ params: favoriteGetTableSchema, query: querySchema }),
-  async (req: Request<any, any, any, QueryType>, res: Response) => {
-    const { table } = req.params;
-    const limit = Number(req.query.limit) || 10;
-    const offset = Number(req.query.offset) || 0;
-    const userId = req.user?.id;
+	"/:table",
+	express.json(),
+	authenticationHandler,
+	validate({ params: favoriteGetTableSchema, query: querySchema }),
+	async (req: Request<any, any, any, QueryType>, res: Response) => {
+		const { table } = req.params;
+		const limit = Number(req.query.limit) || 10;
+		const offset = Number(req.query.offset) || 0;
+		const userId = req.user?.id;
 
-    let query = "";
-    let countQuery = "";
+		let query = "";
+		let countQuery = "";
 
-    if (table === "beers") {
-      query = `
+		if (table === "beers") {
+			query = `
 		SELECT 
 		beers_favorites.id, 
 		beers_favorites.beer_id AS target_id, 
@@ -146,15 +147,13 @@ router.get(
 		LIMIT $2 OFFSET $3;
       `;
 
-      countQuery = `
+			countQuery = `
         SELECT COUNT(*) AS total
         FROM beers_favorites
         WHERE user_id = $1;
       `;
-    }
-
-    else if (table === "breweries") {
-      query = `
+		} else if (table === "breweries") {
+			query = `
         SELECT 
 		breweries_favorites.id, 
 		breweries_favorites.brewery_id AS target_id, 
@@ -168,15 +167,13 @@ router.get(
         LIMIT $2 OFFSET $3;
       `;
 
-      countQuery = `
+			countQuery = `
         SELECT COUNT(*) AS total
         FROM breweries_favorites
         WHERE user_id = $1;
       `;
-    }
-
-    else if (table === "all") {
-      query = `
+		} else if (table === "all") {
+			query = `
 		SELECT *
 		FROM 
 		(
@@ -213,39 +210,75 @@ router.get(
         LIMIT $2 OFFSET $3;
       `;
 
-      countQuery = `
+			countQuery = `
         SELECT 
           (SELECT COUNT(*) FROM beers_favorites WHERE user_id = $1) +
           (SELECT COUNT(*) FROM breweries_favorites WHERE user_id = $1)
           AS total;
       `;
-    }
+		} else {
+			return res.status(400).json({ error: "Invalid table selection" });
+		}
 
-    else {
-      return res.status(400).json({ error: "Invalid table selection" });
-    }
+		try {
+			const [favoritesResult, countResult] = await Promise.all([
+				pool.query(query, [userId, limit, offset]),
+				pool.query(countQuery, [userId]),
+			]);
 
-    try {
-      const [favoritesResult, countResult] = await Promise.all([
-        pool.query(query, [userId, limit, offset]),
-        pool.query(countQuery, [userId]),
-      ]);
+			const totalItems = Number(countResult.rows[0].total);
 
-      const totalItems = Number(countResult.rows[0].total);
+			res.status(200).json({
+				pagination: {
+					total: totalItems,
+					limit,
+					offset,
+				},
+				data: favoritesResult.rows,
+			});
+		} catch (error) {
+			console.error(error);
+			res.status(500).json({ error: "Failed to retrieve favorites" });
+		}
+	}
+);
 
-      res.status(200).json({
-        pagination: {
-          total: totalItems,
-          limit,
-          offset,
-        },
-        data: favoritesResult.rows,
-      });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Failed to retrieve favorites" });
-    }
-  }
+router.get(
+	"/:table/:id",
+	express.json(),
+	authenticationHandler,
+	validate({ params: favoriteIdSchema }),
+	async (req: Request, res: Response) => {
+		const { table, id } = req.params;
+		const tableName = table + "_favorites"
+		const tableNameSingular = table.replace(/s$/, '') + "_id"
+		const userId = req.user?.id;
+
+		const query = `
+			SELECT EXISTS (
+			SELECT 1
+			FROM ${tableName}
+			WHERE user_id = $1 AND ${tableNameSingular} = $2
+			);	
+		`;
+
+		try {
+			const result = await pool.query(query, [ userId, id])
+			if(result.rows[0].exists === true) {
+				res.status(200).json({
+					favorited: true
+				})
+			} else {
+				res.status(200).json({
+					favorited: false
+				})
+			}
+			res.status(200).json(result.rows[0])
+		} catch (error) {
+			console.log(error);
+			res.status(500).json({ Error: "Server Error" });
+		}
+	}
 );
 
 export default router;
