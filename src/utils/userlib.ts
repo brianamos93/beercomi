@@ -4,7 +4,7 @@ import pool from "../utils/config";
 
 export async function tokenUser(decodedToken: any) {
 	return await pool.query(
-   "SELECT id, role, display_name, profile_img_url FROM users WHERE id = $1",[decodedToken.id]
+   "SELECT id, role, display_name, profile_img_url, present_location FROM users WHERE id = $1",[decodedToken.id]
 	);
   }
 
