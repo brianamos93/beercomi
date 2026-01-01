@@ -47,14 +47,6 @@ interface Review {
 	rating: number;
 }
 
-declare global {
-	namespace Express {
-		interface Request {
-			user?: { id: string; role: string };
-		}
-	}
-}
-
 const fileFilter = (
 	_req: Request,
 	file: Express.Multer.File,
