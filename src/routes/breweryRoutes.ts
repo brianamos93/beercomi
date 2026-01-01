@@ -7,7 +7,6 @@ import path from "path";
 import { FileFilterCallback } from "multer";
 import sharp from "sharp";
 import { userIdGet } from "./userRoutes";
-import { validationHandler } from "../utils/validationMiddleware";
 import {
 	BrewerySchemaBase,
 	EditBrewerySchema,
