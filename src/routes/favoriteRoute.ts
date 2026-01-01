@@ -115,15 +115,14 @@ router.delete(
 );
 
 router.get(
-	"/:table",
+	"/:table/user/:user_id",
 	express.json(),
-	authenticationHandler,
 	validate({ params: favoriteGetTableSchema, query: querySchema }),
 	async (req: Request<any, any, any, QueryType>, res: Response) => {
 		const { table } = req.params;
 		const limit = Number(req.query.limit) || 10;
 		const offset = Number(req.query.offset) || 0;
-		const userId = req.user?.id;
+		const userId = req.params.user_id
 
 		let query = "";
 		let countQuery = "";
@@ -183,7 +182,7 @@ router.get(
 		beers_favorites.date_created, 
 		beers.name, 
 		beers.brewery_id, 
-		breweries.name, 
+		breweries.name AS brewery_name, 
 		'beers' AS source_table
         FROM beers_favorites
 		LEFT JOIN beers ON beers_favorites.beer_id = beers.id
@@ -250,8 +249,8 @@ router.get(
 	validate({ params: favoriteIdSchema }),
 	async (req: Request, res: Response) => {
 		const { table, id } = req.params;
-		const tableName = table + "_favorites"
-		const tableNameSingular = table.replace(/s$/, '') + "_id"
+		const tableName = table + "_favorites";
+		const tableNameSingular = table.replace(/s$/, "") + "_id";
 		const userId = req.user?.id;
 
 		const query = `
@@ -263,17 +262,23 @@ router.get(
 		`;
 
 		try {
-			const result = await pool.query(query, [ userId, id])
-			if(result.rows[0].exists === true) {
+			const result = await pool.query(query, [userId, id]);
+			if (result.rows[0].exists === true) {
+				const trueQuery = `SELECT id 
+				FROM ${tableName} 
+				WHERE user_id = $1 AND ${tableNameSingular} = $2`;
+				const trueRes = await pool.query(trueQuery, [userId, id])
+				const favorite_id = trueRes.rows[0].id
 				res.status(200).json({
-					favorited: true
-				})
+					favorited: true,
+					favorite_id: favorite_id
+				});
 			} else {
 				res.status(200).json({
-					favorited: false
-				})
+					favorited: false,
+					favorite_id: null,
+				});
 			}
-			res.status(200).json(result.rows[0])
 		} catch (error) {
 			console.log(error);
 			res.status(500).json({ Error: "Server Error" });
