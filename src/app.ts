@@ -21,8 +21,6 @@ app.use(cors({
 }));
 app.use(express.static('dist'))
 
-app.use(middleware.requestLogger);
-
 app.use("/beers", beerRoutes);
 app.use("/breweries", breweryRoutes)
 app.use("/search", searchRoutes)
