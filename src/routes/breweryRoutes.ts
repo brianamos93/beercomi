@@ -14,6 +14,8 @@ import {
 import { querySchema, QueryType } from "../schemas/querySchema";
 import validate from "express-zod-safe";
 import { idParamSchema } from "../schemas/generalSchemas";
+import { activityLogger } from "../utils/middleware/activityLogger";
+import { fileValidator } from "../utils/middleware/fileTyper";
 const { authenticationHandler } = require("../utils/middleware");
 const express = require("express");
 
@@ -80,8 +82,11 @@ async function breweryCoverImageLookup(breweryID: string) {
 router.get(
 	"/",
 	express.json(),
-	validate({query: querySchema}),
-	async (req: Request<Record<string, never>, unknown, unknown, QueryType>, res: Response) => {
+	validate({ query: querySchema }),
+	async (
+		req: Request<Record<string, never>, unknown, unknown, QueryType>,
+		res: Response
+	) => {
 		try {
 			const limit = req.query.limit || 10;
 			const offset = req.query.offset || 0;
@@ -112,11 +117,14 @@ router.get(
 			const brewereies: Brewery[] = breweriesResult.rows;
 
 			const totalItems = parseInt(countResult.rows[0].count);
-			res.json({ pagination: {
+			res.json({
+				pagination: {
 					total: totalItems,
 					limit,
 					offset,
-				}, data: brewereies });
+				},
+				data: brewereies,
+			});
 		} catch (error) {
 			console.error("Error fetching breweries", error);
 			res.status(500).json({ error: "Error fetching breweries" });
@@ -138,7 +146,7 @@ router.get("/list", express.json(), async (req: Request, res: Response) => {
 router.get(
 	"/:id",
 	express.json(),
-	validate({ params: idParamSchema, query: querySchema}),
+	validate({ params: idParamSchema, query: querySchema }),
 	async (req: Request<Params, unknown, unknown, QueryType>, res: Response) => {
 		const breweryId = req.params.id;
 		const limit = req.query.limit || 10;
@@ -223,7 +231,13 @@ router.post(
 	"/",
 	authenticationHandler,
 	upload.single("cover_image"),
-	validate({body: BrewerySchemaBase}),
+	fileValidator,
+	validate({ body: BrewerySchemaBase }),
+	activityLogger({
+		action: "brewery_post",
+		entityType: "breweries",
+		getEntityId: (_req, res) => res.locals.deletedReview,
+	}),
 	async (req: Request, res: Response) => {
 		const { name, location, date_of_founding } = req.body;
 
@@ -238,7 +252,7 @@ router.post(
 		]);
 		//Process uploaded file
 		if (req.file) {
-			const uploadPath = path.join(__dirname, "..", `uploads/${name}`);
+			const uploadPath = path.join(__dirname, "..", `uploads/`);
 			if (!fs.existsSync(uploadPath)) {
 				fs.mkdirSync(uploadPath, { recursive: true });
 			}
@@ -246,12 +260,12 @@ router.post(
 				req.file && req.file.originalname
 					? path.extname(req.file.originalname)
 					: "";
-			newFileName = `${name}CoverImage-${Date.now()}${ext}`;
+			newFileName = `CoverImage-${Date.now()}${ext}`;
 			const uploadFilePathAndFile = path.join(uploadPath, newFileName);
 			await sharp(req.file.buffer)
 				.resize(200, 200)
 				.toFile(uploadFilePathAndFile);
-			relativeUploadFilePathAndFile = `/uploads/${name}/${newFileName}`;
+			relativeUploadFilePathAndFile = `/uploads/${newFileName}`;
 		}
 		try {
 			const result = await pool.query(
@@ -265,6 +279,7 @@ router.post(
 				]
 			);
 			const createdBrewery: Brewery = result.rows[0];
+			res.locals.createdBrewery = createdBrewery.id;
 			res.status(201).json(createdBrewery);
 		} catch (error) {
 			console.error("Error adding brewery", error);
@@ -277,7 +292,13 @@ router.put(
 	"/:id",
 	authenticationHandler,
 	upload.single("cover_image"),
-	validate({body: EditBrewerySchema, params: idParamSchema}),
+	fileValidator,
+	validate({ body: EditBrewerySchema, params: idParamSchema }),
+	activityLogger({
+		action: "brewery_edited",
+		entityType: "brewries",
+		getEntityId: (_req, res) => res.locals.deletedReview,
+	}),
 	async (req: Request, res: Response) => {
 		const breweryID = req.params.id;
 		const { name, location, date_of_founding, deleteCoverImage } = req.body;
@@ -325,7 +346,7 @@ router.put(
 		let relativeUploadFilePathAndFile;
 
 		if (req.file) {
-			const uploadPath = path.join(__dirname, "..", `uploads/${name}`);
+			const uploadPath = path.join(__dirname, "..", `uploads/`);
 			if (!fs.existsSync(uploadPath)) {
 				fs.mkdirSync(uploadPath);
 			}
@@ -333,12 +354,12 @@ router.put(
 				req.file && req.file.originalname
 					? path.extname(req.file.originalname)
 					: "";
-			const newFileName = `${name}-CoverImage-${Date.now()}${ext}`;
+			const newFileName = `-CoverImage-${Date.now()}${ext}`;
 			const uploadFilePathAndFile = path.join(uploadPath, newFileName);
 			await sharp(req.file.buffer)
 				.resize(200, 200)
 				.toFile(uploadFilePathAndFile);
-			relativeUploadFilePathAndFile = `/uploads/${name}/${newFileName}`;
+			relativeUploadFilePathAndFile = `/uploads/${newFileName}`;
 		}
 
 		try {
@@ -352,6 +373,7 @@ router.put(
 					breweryID,
 				]
 			);
+			res.locals.deletedReview = breweryID;
 			res.status(200).json({ message: "Brewery updated successfully" });
 		} catch (error) {
 			console.error("PUT /:id error:", error);
@@ -364,7 +386,12 @@ router.delete(
 	"/:id",
 	express.json(),
 	authenticationHandler,
-	validate({params: idParamSchema}),
+	validate({ params: idParamSchema }),
+	activityLogger({
+		action: "brewery_delete",
+		entityType: "breweries",
+		getEntityId: (_req, res) => res.locals.deletedReview,
+	}),
 	async (req: Request, res: Response) => {
 		const breweryID = req.params.id;
 		const brewerycheck = await brewerylookup(breweryID);
@@ -397,6 +424,7 @@ router.delete(
 
 		try {
 			await pool.query("DELETE FROM breweries WHERE id = $1", [breweryID]);
+			res.locals.deletedReview = breweryID;
 			res.sendStatus(200);
 		} catch (error) {
 			console.error("Error deleting brewery", error);

@@ -11,6 +11,7 @@ import { beerlookup, breweryLookup } from "./beerRoutes";
 const { authenticationHandler } = require("../utils/middleware");
 import pool from "../utils/config";
 import { querySchema, QueryType } from "../schemas/querySchema";
+import { activityLogger } from "../utils/middleware/activityLogger";
 
 const router = Router();
 
@@ -33,6 +34,11 @@ router.post(
 	express.json(),
 	authenticationHandler,
 	validate({ body: favoriteInputSchema }),
+	activityLogger({
+		action: "favorite_created",
+		entityType: (req) => `${req.body.table}_favorites`,
+		getEntityId: (_req, res) => res.locals.createdFavorite,
+	}),
 	async (req: Request, res: Response) => {
 		const userId = req.user?.id;
 		let query = "";
@@ -66,6 +72,7 @@ router.post(
 				return res.status(200).json({ message: "Already favorited" });
 			}
 			const favoriteData = result.rows[0];
+			res.locals.createdFavorite = favoriteData.id
 			res.status(201).json(favoriteData);
 		} catch (error) {
 			console.log(error);
@@ -79,6 +86,11 @@ router.delete(
 	express.json(),
 	authenticationHandler,
 	validate({ params: favoriteDeleteSchema }),
+	activityLogger({
+		action: "favorite_deleted",
+		entityType: (req) => `${req.body.table}_favorites`,
+		getEntityId: (_req, res) => res.locals.deletedFavorite,
+	}),
 	async (req: Request, res: Response) => {
 		let query = "";
 		if (req.params.table === "beers") {
@@ -106,6 +118,7 @@ router.delete(
 		}
 		try {
 			const result = await pool.query(query, [req.params.id]);
+			res.locals.deletedFavorite = req.params.id
 			res.status(200).json({ deleted: result.rows[0] });
 		} catch (error) {
 			console.log(error);
@@ -122,7 +135,7 @@ router.get(
 		const { table } = req.params;
 		const limit = Number(req.query.limit) || 10;
 		const offset = Number(req.query.offset) || 0;
-		const userId = req.params.user_id
+		const userId = req.params.user_id;
 
 		let query = "";
 		let countQuery = "";
@@ -267,11 +280,11 @@ router.get(
 				const trueQuery = `SELECT id 
 				FROM ${tableName} 
 				WHERE user_id = $1 AND ${tableNameSingular} = $2`;
-				const trueRes = await pool.query(trueQuery, [userId, id])
-				const favorite_id = trueRes.rows[0].id
+				const trueRes = await pool.query(trueQuery, [userId, id]);
+				const favorite_id = trueRes.rows[0].id;
 				res.status(200).json({
 					favorited: true,
-					favorite_id: favorite_id
+					favorite_id: favorite_id,
 				});
 			} else {
 				res.status(200).json({

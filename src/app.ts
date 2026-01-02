@@ -12,6 +12,7 @@ import searchRoutes from "./routes/searchRoute"
 import storesRoutes from "./routes/storeRoutes"
 import recentRoutes from "./routes/recentactivtyRoutes"
 import favorteRoutes from "./routes/favoriteRoute"
+import activityRoutes from "./routes/activityLog"
 import path from "path";
 const middleware = require('./utils/middleware');
 
@@ -27,6 +28,7 @@ app.use("/search", searchRoutes)
 app.use("/stores", storesRoutes)
 app.use("/recent", recentRoutes)
 app.use("/favorites", favorteRoutes)
+app.use("/admin/activitylog", activityRoutes)
 app.use("/", userRoutes);
 app.use("/uploads", express.static(path.join(__dirname, "uploads")))
 

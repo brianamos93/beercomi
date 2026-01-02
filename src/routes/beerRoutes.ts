@@ -6,23 +6,17 @@ import fs from "fs";
 import path from "path";
 import { FileFilterCallback } from "multer";
 import sharp from "sharp";
-import {
-	BeerSchemaBase,
-	EditBeerSchema,
-} from "../schemas/beerSchemas";
+import { BeerSchemaBase, EditBeerSchema } from "../schemas/beerSchemas";
 import { CreateReviewSchema, EditReviewSchema } from "../schemas/reviewSchemas";
 import { querySchema, QueryType } from "../schemas/querySchema";
 const { authenticationHandler } = require("../utils/middleware");
 import express from "express";
 import validate from "express-zod-safe";
 import { idParamSchema } from "../schemas/generalSchemas";
+import { activityLogger } from "../utils/middleware/activityLogger";
+import { fileValidator } from "../utils/middleware/fileTyper";
 
 const router = Router();
-
-interface CustomRequest extends Request {
-	file?: Express.Multer.File; // For single file uploads
-	files?: Express.Multer.File[]; // For multiple file uploads (array of files)
-}
 
 interface Beer {
 	id: string;
@@ -279,9 +273,10 @@ router.get(
 			);
 
 			const totalResult = await pool.query(
-				`SELECT COUNT(*) 
-         FROM beer_reviews 
-         WHERE beer_id = $1`,
+				`
+				SELECT COUNT(*) 
+         		FROM beer_reviews 
+         		WHERE beer_id = $1`,
 				[beerId]
 			);
 
@@ -307,7 +302,13 @@ router.post(
 	"/",
 	authenticationHandler,
 	upload.single("cover_image"),
+	fileValidator,
 	validate({ body: BeerSchemaBase }),
+	activityLogger({
+		action: "beer_created",
+		entityType: "beers",
+		getEntityId: (_req, res) => res.locals.createdBeerId,
+	}),
 	async (req: Request, res: Response) => {
 		for (const key in req.body) {
 			if (typeof req.body[key] === "string") {
@@ -317,7 +318,9 @@ router.post(
 		const { name, brewery_id, description, style, ibu, abv, color } = req.body;
 		const trimmedBrewery_id = brewery_id.trim();
 		const brewery = await breweryLookup(trimmedBrewery_id);
-		const breweryName = brewery.rows[0].name;
+		if (brewery.rowCount === 0) {
+			return res.status(401).json({ Errror: "Brewery Not Found" });
+		}
 		let newFileName = null;
 		let relativeUploadFilePathAndFile = null;
 
@@ -329,7 +332,7 @@ router.post(
 			const uploadPath = path.join(
 				__dirname,
 				"..",
-				`uploads/${breweryName}/${name}`
+				`uploads/`
 			);
 			if (!fs.existsSync(uploadPath)) {
 				fs.mkdirSync(uploadPath, { recursive: true });
@@ -338,13 +341,13 @@ router.post(
 				req.file && req.file.originalname
 					? path.extname(req.file.originalname)
 					: "";
-			newFileName = `${name}-CoverImage-${Date.now()}${ext}`;
+			newFileName = `CoverImage-${Date.now()}${ext}`;
 			const uploadFilePathAndFile = path.join(uploadPath, newFileName);
 			await sharp(req.file.buffer)
 				.webp({ lossless: true })
 				.resize(200, 200, { fit: "contain" })
 				.toFile(uploadFilePathAndFile);
-			relativeUploadFilePathAndFile = `/uploads/${breweryName}/${name}/${newFileName}`;
+			relativeUploadFilePathAndFile = `/uploads/${newFileName}`;
 		}
 		try {
 			const user = await pool.query("SELECT * FROM users WHERE id = $1", [
@@ -352,11 +355,6 @@ router.post(
 			]);
 			if (!user) {
 				return res.status(401).json({ error: "User not found" });
-			}
-
-			// TypeScript type-based input validation
-			if (typeof name !== "string" || name.trim() === "") {
-				return res.status(400).json({ error: "Invalid beer name data" });
 			}
 
 			const formatedIbu = Number(ibu);
@@ -376,6 +374,7 @@ router.post(
 				]
 			);
 			const createdBeer: Beer = result.rows[0];
+			res.locals.createdBeerId = result.rows[0].id;
 			res.status(201).json(createdBeer);
 		} catch (error) {
 			console.error("Error adding beer", error);
@@ -388,6 +387,11 @@ router.delete(
 	"/:id",
 	express.json(),
 	validate({ params: idParamSchema }),
+	activityLogger({
+		action: "beer_deleted",
+		entityType: "beers",
+		getEntityId: (req) => req.params.id,
+	}),
 	async (req: Request, res: Response) => {
 		const beerID = req.params.id;
 		const beercheck = await beerlookup(beerID);
@@ -425,7 +429,13 @@ router.put(
 	"/:id",
 	authenticationHandler,
 	upload.single("cover_image"),
-	validate({body: EditBeerSchema}),
+	fileValidator,
+	validate({ body: EditBeerSchema }),
+	activityLogger({
+		action: "beer_edited",
+		entityType: "beers",
+		getEntityId: (_req, res) => res.locals.updatedBeerId,
+	}),
 	async (req: Request, res: Response) => {
 		const beerID = req.params.id;
 		const {
@@ -482,7 +492,7 @@ router.put(
 			const uploadPath = path.join(
 				__dirname,
 				"..",
-				`uploads/${breweryName}/${name ?? currentBeer.name}`
+				`uploads/`
 			);
 			if (!fs.existsSync(uploadPath)) {
 				fs.mkdirSync(uploadPath, { recursive: true });
@@ -491,15 +501,13 @@ router.put(
 				req.file && req.file.originalname
 					? path.extname(req.file.originalname)
 					: "";
-			newFileName = `${
-				name ?? currentBeer.name
-			}-CoverImage-${Date.now()}${ext}`;
+			newFileName = `CoverImage-${Date.now()}${ext}`;
 			const uploadFilePathAndFile = path.join(uploadPath, newFileName);
 			await sharp(req.file.buffer)
 				.webp({ lossless: true })
 				.resize(200, 200, { fit: "contain" })
 				.toFile(uploadFilePathAndFile);
-			const relativeUploadFilePathAndFile = `/uploads/${breweryName}/${name}/${newFileName}`;
+			const relativeUploadFilePathAndFile = `/uploads/${newFileName}`;
 			await pool.query(`UPDATE beers SET cover_image = $1 WHERE id = $2`, [
 				relativeUploadFilePathAndFile,
 				beerID,
@@ -507,10 +515,11 @@ router.put(
 		}
 
 		try {
-			await pool.query(
+			const result = await pool.query(
 				`UPDATE beers SET name = $1, brewery_id = $2, description = $3, style = $4, ibu = $5, abv = $6, color = $7 WHERE id = $8`,
 				[name, brewery_id, description, style, ibu, abv, color, beerID]
 			);
+			res.locals.updatedBeerId = result.rows[0].id;
 			res.status(200).json({ message: "Beer updated successfully" });
 		} catch (error) {
 			console.log(error);
@@ -522,7 +531,7 @@ router.put(
 router.get(
 	"/review/:id",
 	express.json(),
-	validate({params: idParamSchema}),
+	validate({ params: idParamSchema }),
 	async (req: Request, res: Response) => {
 		const reviewId = req.params.id;
 		try {
@@ -585,7 +594,13 @@ router.post(
 	"/review/",
 	authenticationHandler,
 	upload.array("photos", 4),
-	validate({body: CreateReviewSchema}),
+	fileValidator,
+	validate({ body: CreateReviewSchema }),
+	activityLogger({
+		action: "review_created",
+		entityType: "reviews",
+		getEntityId: (_req, res) => res.locals.createdReview,
+	}),
 	async (req: Request, res: Response) => {
 		const client = await pool.connect();
 		const { rating, review, beer_id } = req.body;
@@ -628,7 +643,7 @@ router.post(
 					const uploadPath = path.join(
 						__dirname,
 						"..",
-						`uploads/${breweryName}/${beerName}`
+						`uploads/`
 					);
 					if (!fs.existsSync(uploadPath)) {
 						fs.mkdirSync(uploadPath, { recursive: true });
@@ -638,7 +653,7 @@ router.post(
 					await sharp(file.buffer)
 						.webp({ lossless: true })
 						.toFile(uploadFilePathAndFile);
-					const relativeUploadFilePathAndFile = `/uploads/${breweryName}/${beerName}/${newFileName}`;
+					const relativeUploadFilePathAndFile = `/uploads/${newFileName}`;
 					client.query(
 						`INSERT INTO review_photos (review_id, photo_url, position, user_id)
 					VALUES ($1, $2, $3, $4)`,
@@ -649,7 +664,7 @@ router.post(
 			}
 
 			await client.query("COMMIT");
-
+			res.locals.createdReview = reviewId;
 			res.status(201).json({ message: "Review Created", reviewId });
 		} catch (error) {
 			await client.query("ROLLBACK");
@@ -665,11 +680,17 @@ router.put(
 	"/review/:id",
 	authenticationHandler,
 	upload.array("photos", 4),
-	validate({body: EditReviewSchema}),
+	fileValidator,
+	validate({ body: EditReviewSchema }),
+	activityLogger({
+		action: "review_edited",
+		entityType: "reviews",
+		getEntityId: (_req, res) => res.locals.editedReview,
+	}),
 	async (req: Request, res: Response) => {
 		const reviewID = req.params.id;
 		const client = await pool.connect();
-		const { rating, review, beer_id, kept, deleted } = req.body;
+		const { rating, review, beer_id, deleted } = req.body;
 		const parsedDeletedData = JSON.parse(deleted);
 		const reviewcheck = await reviewLookup(reviewID);
 		const numberRating = Number(rating);
@@ -762,7 +783,7 @@ router.put(
 					const uploadPath = path.join(
 						__dirname,
 						"..",
-						`uploads/${breweryName}/${beerName}`
+						`uploads/`
 					);
 					if (!fs.existsSync(uploadPath)) {
 						fs.mkdirSync(uploadPath, { recursive: true });
@@ -772,7 +793,7 @@ router.put(
 					await sharp(file.buffer)
 						.webp({ lossless: true })
 						.toFile(uploadFilePathAndFile);
-					const relativeUploadFilePathAndFile = `/uploads/${breweryName}/${beerName}/${newFileName}`;
+					const relativeUploadFilePathAndFile = `/uploads/${newFileName}`;
 					client.query(
 						`INSERT INTO review_photos (review_id, photo_url, position, user_id)
 				VALUES ($1, $2, $3, $4)`,
@@ -782,7 +803,7 @@ router.put(
 				await Promise.all(photoInserts);
 			}
 			await client.query("COMMIT");
-
+			res.locals.createdReview = reviewID;
 			res.status(200).json({ message: "Review updated successfully" });
 		} catch (error) {
 			console.log(error);
@@ -796,7 +817,12 @@ router.delete(
 	"/review/photo/:id",
 	authenticationHandler,
 	express.json(),
-	validate({params: idParamSchema}),
+	validate({ params: idParamSchema }),
+	activityLogger({
+		action: "review_deletePhoto",
+		entityType: "reviews_photos",
+		getEntityId: (_req, res) => res.locals.deletedReviewPhoto,
+	}),
 	async (req: Request, res: Response) => {
 		const photoId = req.params.id;
 		const photoCheck = await photoLookup(photoId);
@@ -816,6 +842,7 @@ router.delete(
 				fs.unlinkSync(filePath);
 			}
 			await pool.query("DELETE FROM review_photos WHERE id = $1", [photoId]);
+			res.locals.deletedReviewPhoto = photoId;
 			res.sendStatus(200);
 		} catch (error) {
 			console.error("Error deleting photo", error);
@@ -829,7 +856,12 @@ router.delete(
 	"/review/:id",
 	authenticationHandler,
 	express.json(),
-	validate({params: idParamSchema}),
+	validate({ params: idParamSchema }),
+	activityLogger({
+		action: "review_delete",
+		entityType: "reviews",
+		getEntityId: (_req, res) => res.locals.deletedReview,
+	}),
 	async (req: Request, res: Response) => {
 		const reviewID = req.params.id;
 		const reviewcheck = await reviewLookup(reviewID);
@@ -858,6 +890,7 @@ router.delete(
 				await pool.query("DELETE FROM review_photos WHERE id = $1", [photo.id]);
 			});
 			await pool.query("DELETE FROM beer_reviews WHERE id = $1", [reviewID]);
+			res.locals.deletedReview = reviewID;
 			res.sendStatus(200);
 		} catch (error) {
 			console.error("Error deleting review", error);
