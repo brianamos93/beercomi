@@ -36,7 +36,6 @@ export const BrewerySchemaBase = z.object({
 		.min(4, {
 			message: "The date of founding must be at least 4 character long.",
 		}),
-	cover_image: multerFileSchema,
 });
 
 export const EditBrewerySchema = BrewerySchemaBase.extend({

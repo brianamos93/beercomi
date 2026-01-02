@@ -26,7 +26,6 @@ export const BeerSchemaBase = z.object({
 	color: z.string().min(1, "Color is required."),
 	ibu: z.coerce.number().min(0, "IBU must be a positive number."),
 	description: z.string().min(1, "Description is required."),
-	cover_image: multerFileSchema,
 });
 
 export const EditBeerSchema = BeerSchemaBase.extend({

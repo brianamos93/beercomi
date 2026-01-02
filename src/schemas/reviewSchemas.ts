@@ -32,7 +32,6 @@ export const CreateReviewSchema = z.object({
     .min(10, { message: "Review must be at least 10 character long." }),
   rating: z.coerce.number(),
   beer_id: z.string(),
-  photos: z.array(multerFileSchema).max(4, "You can upload up to 4 files.").optional().nullable()
 });
 
 export const EditReviewSchema = CreateReviewSchema.extend({

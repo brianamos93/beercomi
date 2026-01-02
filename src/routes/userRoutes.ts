@@ -17,6 +17,7 @@ import {
 	SignupSchema,
 } from "../schemas/userSchemas";
 import { idParamSchema } from "../schemas/generalSchemas";
+import { fileValidator } from "../utils/middleware/fileTyper";
 const express = require("express");
 
 const { authenticationHandler } = require("../utils/middleware");
@@ -146,6 +147,7 @@ router.post(
 	"/profile/img/upload",
 	authenticationHandler,
 	upload.single("image"),
+	fileValidator,
 	validate({ body: profileImageSchema }),
 	async (req: Request, res: Response) => {
 		try {
