@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import pool from "../utils/config";
 const router = Router();
-const express = require('express')
+import express from 'express';
 
 
 
