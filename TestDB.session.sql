@@ -28,3 +28,32 @@ CREATE TRIGGER set_date_updated
 BEFORE UPDATE ON visited_stores
 FOR EACH ROW
 EXECUTE FUNCTION update_date_updated();
+
+CREATE TABLE activity_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID,
+  action TEXT NOT NULL,
+  entity_type TEXT,
+  entity_id UUID,
+  metadata JSONB,
+  created_at TIMESTAMP DEFAULT NOW()
+
+  CONSTRAINT fk_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+);
+
+
+CREATE TABLE activity_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID,
+  action TEXT NOT NULL,
+  entity_type TEXT,
+  entity_id UUID,
+  metadata JSONB,
+  created_at TIMESTAMP DEFAULT NOW(),
+
+  CONSTRAINT fk_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+);
