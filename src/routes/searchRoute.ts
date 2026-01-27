@@ -1,14 +1,19 @@
 import { Router, Request, Response } from "express";
 import pool from "../utils/config";
 const router = Router();
-import express from 'express';
+import express from "express";
+import validate from "express-zod-safe";
+import { searchQuerySchema, SearchQueryType } from "../schemas/querySchema";
 
-
-
-router.get("/", express.json(), async(req:Request, res:Response) => {
-	const { q, limit, offset } = req.query
-	try {
-		const searchResults = await pool.query(`
+router.get(
+	"/",
+	express.json(),
+	validate({ query: searchQuerySchema }),
+	async (req: Request<any, any, any, SearchQueryType>, res: Response) => {
+		const { q, limit, offset } = req.query;
+		try {
+			const searchResults = await pool.query(
+				`
       SELECT * FROM (
       SELECT 
          id,
@@ -40,13 +45,16 @@ router.get("/", express.json(), async(req:Request, res:Response) => {
       ) AS combined
       ORDER BY name
       LIMIT $2 OFFSET $3;
-  `, [`%${q}%`, limit, offset])
+  `,
+				[`%${q}%`, limit, offset]
+			);
 
-  const results = searchResults.rows
-  return res.json(results)
-	} catch (error) {
-      console.log(error)
-      res.status(500).json({error: 'Interal Server Error'})
+			const results = searchResults.rows;
+			return res.json(results);
+		} catch (error) {
+			console.log(error);
+			res.status(500).json({ error: "Interal Server Error" });
+		}
 	}
-})
-export default router
+);
+export default router;

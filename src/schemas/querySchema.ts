@@ -16,4 +16,10 @@ export const querySchema = z.object({
 		}),
 });
 
+export const searchQuerySchema = querySchema.extend({
+	q: z.string()
+});
+
+export type SearchQueryType = z.infer<typeof searchQuerySchema>
+
 export type QueryType = z.infer<typeof querySchema>;
