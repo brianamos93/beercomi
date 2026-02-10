@@ -17,7 +17,7 @@ export const querySchema = z.object({
 });
 
 export const searchQuerySchema = querySchema.extend({
-	q: z.string()
+	q: z.string().min(1, { message: "Search query cannot be empty" })
 });
 
 export type SearchQueryType = z.infer<typeof searchQuerySchema>
