@@ -148,7 +148,7 @@ const config: Config = {
   // snapshotSerializers: [],
 
   // The test environment that will be used for testing
-   testEnvironment: "jest-environment-node",
+   testEnvironment: "node",
 
   // Options that will be passed to the testEnvironment
   // testEnvironmentOptions: {},
@@ -196,6 +196,15 @@ const config: Config = {
 
   // Whether to use watchman for file crawling
   // watchman: true,
+
+  // The timeout in milliseconds for each test
+  testTimeout: 10000,
+
+  // Whether to force Jest to exit after all tests have completed
+  forceExit: true,
+
+  // Whether to detect open handles and report them
+  detectOpenHandles: true,
 };
 
 export default config;

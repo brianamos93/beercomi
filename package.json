@@ -53,7 +53,7 @@
     "fix": "run-s -l -c fix:eslint fix:prettier",
     "fix:eslint": "eslint --fix src/**/*.ts",
     "fix:prettier": "prettier --write .",
-    "test": "SET NODE_ENV=test & jest"
+    "test": "SET NODE_ENV=test & jest --detectOpenHandles"
   },
   "author": "",
   "license": "ISC",
