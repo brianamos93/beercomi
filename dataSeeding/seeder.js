@@ -25,6 +25,17 @@ async function main() {
   // ===== USERS =====
   console.log("👤 Creating users...");
   const users = [];
+
+  // create admin user
+  const adminPasswordHash = await bcrypt.hash('admin12345', 10);
+  const adminRes = await client.query(
+    `INSERT INTO users (email, password, display_name, role)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    ['admin@admin.com', adminPasswordHash, 'admin', 'admin']
+  );
+  users.push(adminRes.rows[0]);
+
   for (let i = 0; i < NUM_USERS; i++) {
     const email = faker.internet.email();
     const passwordHash = await bcrypt.hash('password123', 10);
