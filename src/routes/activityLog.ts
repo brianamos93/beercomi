@@ -12,7 +12,6 @@ router.get(
 	validate({ query: querySchema }),
 	async (req: Request<any, any, any, QueryType>, res: Response, next: NextFunction) => {
 		try {
-			
 			if (req.user?.role !== "admin") {
 				return res.status(400).json({ error: "User not authorized" });
 			}
