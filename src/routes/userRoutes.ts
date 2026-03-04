@@ -148,7 +148,6 @@ router.post(
 	authenticationHandler,
 	upload.single("image"),
 	fileValidator,
-	validate({ body: profileImageSchema }),
 	async (req: Request, res: Response) => {
 		try {
 			if (!req.file) return res.status(400).json({ error: "No file uploaded" });
