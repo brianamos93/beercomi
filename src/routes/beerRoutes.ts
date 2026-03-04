@@ -73,6 +73,13 @@ export async function beerlookup(beerID: string) {
 	);
 }
 
+export async function deletedBeerLookup(beerID: string) {
+	return await pool.query(
+		"SELECT id, name, brewery_id, description, ibu, abv, color, author_id, style, cover_image FROM beers WHERE id = $1 AND deleted_at IS NOT NULL",
+		[beerID],
+	);
+}
+
 async function beerUser(beerID: string) {
 	return await pool.query("SELECT author_id FROM beers WHERE id = $1", [
 		beerID,
@@ -129,7 +136,10 @@ router.get(
 	"/",
 	express.json(),
 	validate({ query: querySchema }),
-	async (req: Request<any, any, any, QueryType>, res: Response) => {
+	async (
+		req: Request<Record<string, never>, unknown, unknown, QueryType>,
+		res: Response,
+	) => {
 		try {
 			const limit = req.query.limit || 10;
 			const offset = req.query.offset || 0;
@@ -187,7 +197,9 @@ router.get(
 
 router.get("/list", express.json(), async (req: Request, res: Response) => {
 	try {
-		const result = await pool.query("SELECT id FROM beers WHERE deleted_at IS NULL");
+		const result = await pool.query(
+			"SELECT id FROM beers WHERE deleted_at IS NULL",
+		);
 		const beers: Beer[] = result.rows;
 		res.json(beers);
 	} catch (error) {
@@ -382,7 +394,7 @@ router.delete(
 	express.json(),
 	validate({ params: idParamSchema }),
 	activityLogger({
-		action: "beer_deleted",
+		action: "beer_soft_deleted",
 		entityType: "beers",
 		getEntityId: (req) => req.params.id,
 	}),
@@ -390,7 +402,7 @@ router.delete(
 		const beerID = req.params.id;
 		const beercheck = await beerlookup(beerID);
 		if (beercheck.rowCount == 0) {
-			return res.status(401).json({ error: "beer does not exist" });
+			return res.status(401).json({ error: "beer does not exist or is already soft deleted" });
 		}
 		const decodedToken = decodeToken(req);
 		if (!decodedToken.id) {
@@ -398,26 +410,63 @@ router.delete(
 		}
 
 		const user = await tokenUser(decodedToken);
-		if (user.rows[0].role !== "admin") {
-			return res.status(400).json({ error: "User not authorized" });
-		}
-
-		const beerCoverImageRes = await beerCoverImageLookup(beerID);
-		const coverImagePathAndFile = beerCoverImageRes.rows[0].cover_image;
-		const filePath = path.join(__dirname, "..", coverImagePathAndFile);
-		if (fs.existsSync(filePath)) {
-			fs.unlinkSync(filePath);
+		if (
+			user.rows[0].role !== "admin" &&
+			user.rows[0].id !== beercheck.rows[0].author_id
+		) {
+			return res.status(403).json({ error: "User not authorized" });
 		}
 
 		try {
-			await pool.query(
+			const result = await pool.query(
 				"UPDATE beers SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
 				[beerID],
 			);
-			res.sendStatus(200);
+			res.status(200).json(result);
 		} catch (error) {
 			console.error("Error deleting beer", error);
 			res.status(500).json({ error: "Error deleting beer" });
+		}
+	},
+);
+
+router.post(
+	"/admin/undo/delete/:id",
+	express.json(),
+	validate({ params: idParamSchema }),
+	activityLogger({
+		action: "beer_soft_deleted_undo",
+		entityType: "beers",
+		getEntityId: (req) => req.params.id,
+	}),
+	async (req: Request, res: Response) => {
+		const beerID = req.params.id;
+		const beercheck = await deletedBeerLookup(beerID);
+		if (beercheck.rowCount == 0) {
+			return res.status(401).json({ error: "beer not soft deleted" });
+		}
+		const decodedToken = decodeToken(req);
+		if (!decodedToken.id) {
+			return res.status(401).json({ error: "token invalid" });
+		}
+
+		const user = await tokenUser(decodedToken);
+		if (
+			user.rows[0].role !== "admin" &&
+			user.rows[0].id !== beercheck.rows[0].author_id
+		) {
+			return res.status(400).json({ error: "User not authorized" });
+		}
+
+		try {
+			const results = await pool.query(
+				"UPDATE beers SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL",
+				[beerID],
+			);
+			res.status(200).json(results);
+		} catch (error) {
+			console.error("Error restoring beer", error);
+			res.status(500).json({ error: "Error restoring beer" });
 		}
 	},
 );
@@ -605,12 +654,6 @@ router.post(
 				.json({ error: "Review already exists for this user." });
 		}
 		const trimmedBeer_id = req.body.beer_id.trim();
-		const beerData = await beerlookup(trimmedBeer_id);
-
-		const breweryId = beerData.rows[0].brewery_id;
-		const breweryData = await breweryLookup(breweryId);
-		const breweryName = breweryData.rows[0].name;
-		const beerName = beerData.rows[0].name;
 
 		try {
 			if (!rating || !review || !beer_id) {
@@ -679,12 +722,6 @@ router.put(
 		const reviewcheck = await reviewLookup(reviewID);
 		const numberRating = Number(rating);
 		const trimmedBeer_id = req.body.beer_id.trim();
-		const beerData = await beerlookup(trimmedBeer_id);
-
-		const breweryId = beerData.rows[0].brewery_id;
-		const breweryData = await breweryLookup(breweryId);
-		const breweryName = breweryData.rows[0].name;
-		const beerName = beerData.rows[0].name;
 
 		if (reviewcheck.rowCount == 0) {
 			return res.status(401).json({ error: "Review does not exist" });
@@ -881,7 +918,10 @@ router.get(
 	authenticationHandler,
 	express.json(),
 	validate({ query: querySchema }),
-	async (req: Request<any, any, any, QueryType>, res: Response) => {
+	async (
+		req: Request<Record<string, never>, unknown, unknown, QueryType>,
+		res: Response,
+	) => {
 		try {
 			if (req.user?.role !== "admin") {
 				return res.status(403).json({ error: "User not authorized" });
@@ -1054,7 +1094,10 @@ router.get(
 	authenticationHandler,
 	express.json(),
 	validate({ query: querySchema }),
-	async (req: Request<any, any, any, QueryType>, res: Response) => {
+	async (
+		req: Request<Record<string, never>, unknown, unknown, QueryType>,
+		res: Response,
+	) => {
 		try {
 			if (req.user?.role !== "admin") {
 				return res.status(403).json({ error: "User not authorized" });
@@ -1075,6 +1118,7 @@ router.get(
             beer_reviews.deleted_at,
             users.display_name AS author_name,
             beers.name AS beer_name,
+			beer.deleted_at,
             breweries.name AS brewery_name,
             COALESCE(
                 json_agg(
@@ -1137,7 +1181,10 @@ router.get(
 	authenticationHandler,
 	express.json(),
 	validate({ query: querySchema }),
-	async (req: Request<any, any, any, QueryType>, res: Response) => {
+	async (
+		req: Request<Record<string, never>, unknown, unknown, QueryType>,
+		res: Response,
+	) => {
 		try {
 			if (req.user?.role !== "admin") {
 				return res.status(403).json({ error: "User not authorized" });
@@ -1203,22 +1250,24 @@ router.delete(
 		getEntityId: (req) => req.params.id,
 	}),
 	async (req: Request, res: Response) => {
+		const client = await pool.connect();
 		const beerID = req.params.id;
 
 		if (req.user?.role !== "admin") {
 			return res.status(403).json({ error: "User not authorized" });
 		}
-
-		const beerResult = await pool.query(
-			"SELECT id FROM beers WHERE id = $1",
-			[beerID],
-		);
-
-		if (beerResult.rowCount === 0) {
-			return res.status(404).json({ error: "Beer not found" });
-		}
-
 		try {
+			await client.query("BEGIN");
+
+			const beerResult = await client.query(
+				"SELECT id FROM beers WHERE id = $1",
+				[beerID],
+			);
+
+			if (beerResult.rowCount === 0) {
+				return res.status(404).json({ error: "Beer not found" });
+			}
+
 			// Get cover image before deleting
 			const beerCoverImageRes = await beerCoverImageLookup(beerID);
 			if (beerCoverImageRes.rowCount && beerCoverImageRes.rowCount > 0) {
@@ -1231,9 +1280,8 @@ router.delete(
 				}
 			}
 
-
 			// Delete all review photos for reviews of this beer
-			const reviewPhotos = await pool.query(
+			const reviewPhotos = await client.query(
 				`SELECT review_photos.id, review_photos.photo_url FROM review_photos
 				INNER JOIN beer_reviews ON review_photos.review_id = beer_reviews.id
 				WHERE beer_reviews.beer_id = $1`,
@@ -1248,25 +1296,29 @@ router.delete(
 			}
 
 			// Hard delete all review photos and reviews for this beer
-			await pool.query(
+			await client.query(
 				`DELETE FROM review_photos WHERE review_id IN (
 					SELECT id FROM beer_reviews WHERE beer_id = $1
 				)`,
 				[beerID],
 			);
 
-			await pool.query(
-				"DELETE FROM beer_reviews WHERE beer_id = $1",
-				[beerID],
-			);
+			await client.query("DELETE FROM beer_reviews WHERE beer_id = $1", [
+				beerID,
+			]);
 
 			// Hard delete the beer
-			await pool.query("DELETE FROM beers WHERE id = $1", [beerID]);
+			await client.query("DELETE FROM beers WHERE id = $1", [beerID]);
+
+			await client.query("COMMIT");
 
 			res.status(200).json({ message: "Beer permanently deleted" });
 		} catch (error) {
+			await client.query("ROLLBACK");
 			console.error("Error hard deleting beer", error);
 			res.status(500).json({ error: "Error hard deleting beer" });
+		} finally {
+			client.release();
 		}
 	},
 );
@@ -1283,24 +1335,24 @@ router.delete(
 		getEntityId: (req) => req.params.id,
 	}),
 	async (req: Request, res: Response) => {
+		const client = await pool.connect();
 		const reviewID = req.params.id;
 
 		if (req.user?.role !== "admin") {
 			return res.status(403).json({ error: "User not authorized" });
 		}
-
-		const reviewResult = await pool.query(
-			"SELECT id FROM beer_reviews WHERE id = $1",
-			[reviewID],
-		);
-
-		if (reviewResult.rowCount === 0) {
-			return res.status(404).json({ error: "Review not found" });
-		}
-
 		try {
+			await client.query("BEGIN");
+			const reviewResult = await client.query(
+				"SELECT id FROM beer_reviews WHERE id = $1",
+				[reviewID],
+			);
+
+			if (reviewResult.rowCount === 0) {
+				return res.status(404).json({ error: "Review not found" });
+			}
 			// Get all photos for this review
-			const reviewPhotos = await pool.query(
+			const reviewPhotos = await client.query(
 				"SELECT id, photo_url FROM review_photos WHERE review_id = $1",
 				[reviewID],
 			);
@@ -1314,17 +1366,21 @@ router.delete(
 			}
 
 			// Hard delete review photos
-			await pool.query("DELETE FROM review_photos WHERE review_id = $1", [
+			await client.query("DELETE FROM review_photos WHERE review_id = $1", [
 				reviewID,
 			]);
 
 			// Hard delete the review
-			await pool.query("DELETE FROM beer_reviews WHERE id = $1", [reviewID]);
+			await client.query("DELETE FROM beer_reviews WHERE id = $1", [reviewID]);
+			await client.query("COMMIT");
 
 			res.status(200).json({ message: "Review permanently deleted" });
 		} catch (error) {
+			await client.query("ROLLBACK");
 			console.error("Error hard deleting review", error);
 			res.status(500).json({ error: "Error hard deleting review" });
+		} finally {
+			client.release();
 		}
 	},
 );
@@ -1342,21 +1398,21 @@ router.delete(
 	}),
 	async (req: Request, res: Response) => {
 		const photoID = req.params.id;
+		const client = await pool.connect();
 
 		if (req.user?.role !== "admin") {
 			return res.status(403).json({ error: "User not authorized" });
 		}
-
-		const photoResult = await pool.query(
-			"SELECT photo_url FROM review_photos WHERE id = $1",
-			[photoID],
-		);
-
-		if (photoResult.rowCount === 0) {
-			return res.status(404).json({ error: "Photo not found" });
-		}
-
 		try {
+			await client.query("BEGIN");
+			const photoResult = await client.query(
+				"SELECT photo_url FROM review_photos WHERE id = $1",
+				[photoID],
+			);
+
+			if (photoResult.rowCount === 0) {
+				return res.status(404).json({ error: "Photo not found" });
+			}
 			const photoUrl = photoResult.rows[0].photo_url;
 			const filePath = path.join(__dirname, "..", photoUrl);
 
@@ -1366,12 +1422,151 @@ router.delete(
 			}
 
 			// Hard delete the photo record
-			await pool.query("DELETE FROM review_photos WHERE id = $1", [photoID]);
-
+			await client.query("DELETE FROM review_photos WHERE id = $1", [photoID]);
+			await client.query("COMMIT");
 			res.status(200).json({ message: "Photo permanently deleted" });
 		} catch (error) {
+			await client.query("ROLLBACK");
 			console.error("Error hard deleting photo", error);
 			res.status(500).json({ error: "Error hard deleting photo" });
+		} finally {
+			client.release();
+		}
+	},
+);
+router.get(
+	"/admin/all",
+	authenticationHandler,
+	express.json(),
+	validate({ query: querySchema }),
+	async (
+		req: Request<Record<string, never>, unknown, unknown, QueryType>,
+		res: Response,
+	) => {
+		try {
+			if (req.user?.role !== "admin") {
+				return res.status(403).json({ error: "User not authorized" });
+			}
+
+			const limit = req.query.limit || 10;
+			const offset = req.query.offset || 0;
+			const mainQuery = `
+			SELECT 
+			beers.id, 
+			beers.name, 
+			beers.brewery_id, 
+			breweries.name AS brewery_name, 
+			beers.description, beers.style, 
+			beers.ibu, 
+			beers.abv, 
+			beers.color, 
+			beers.cover_image, 
+			beers.date_updated, 
+			beers.author_id,
+			beer_authors.display_name AS author_name,
+			beer_authors.id AS author_id, -- beer author's user id
+			beers.deleted_at,
+			beers.date_created FROM beers LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
+ 			LEFT JOIN breweries ON beers.brewery_id = breweries.id 
+			ORDER BY beers.date_updated DESC
+			LIMIT $1 OFFSET $2
+		`;
+			const countQuery = `SELECT COUNT(*) FROM beers`;
+
+			const [beersResult, countResult] = await Promise.all([
+				pool.query(mainQuery, [limit, offset]),
+				pool.query(countQuery),
+			]);
+
+			const totalItems = parseInt(countResult.rows[0].count);
+
+			const beers: Beer[] = beersResult.rows;
+			const modifiedBeers = beers.map((beer) => {
+				return {
+					...beer,
+					abv: beer.abv / 10,
+				};
+			});
+			res.json({
+				pagination: {
+					total: totalItems,
+					limit,
+					offset,
+				},
+				data: modifiedBeers,
+			});
+		} catch (error) {
+			console.error("Error fetching beers", error);
+			res.status(500).json({ error: "Error fetching beers" });
+		}
+	},
+);
+
+router.get(
+	"/admin/deleted",
+	authenticationHandler,
+	express.json(),
+	validate({ query: querySchema }),
+	async (
+		req: Request<Record<string, never>, unknown, unknown, QueryType>,
+		res: Response,
+	) => {
+		try {
+			if (req.user?.role !== "admin") {
+				return res.status(403).json({ error: "User not authorized" });
+			}
+
+			const limit = req.query.limit || 10;
+			const offset = req.query.offset || 0;
+			const mainQuery = `
+			SELECT 
+			beers.id, 
+			beers.name, 
+			beers.brewery_id, 
+			breweries.name AS brewery_name, 
+			beers.description, beers.style, 
+			beers.ibu, 
+			beers.abv, 
+			beers.color, 
+			beers.cover_image, 
+			beers.date_updated, 
+			beers.author_id,
+			beer_authors.display_name AS author_name,
+			beer_authors.id AS author_id, -- beer author's user id
+			beers.deleted_at,
+			beers.date_created FROM beers LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
+ 			LEFT JOIN breweries ON beers.brewery_id = breweries.id 
+			WHERE beers.deleted_at IS NOT NULL
+			ORDER BY beers.date_updated DESC
+			LIMIT $1 OFFSET $2
+		`;
+			const countQuery = `SELECT COUNT(*) FROM beers WHERE deleted_at IS NOT NULL`;
+
+			const [beersResult, countResult] = await Promise.all([
+				pool.query(mainQuery, [limit, offset]),
+				pool.query(countQuery),
+			]);
+
+			const totalItems = parseInt(countResult.rows[0].count);
+
+			const beers: Beer[] = beersResult.rows;
+			const modifiedBeers = beers.map((beer) => {
+				return {
+					...beer,
+					abv: beer.abv / 10,
+				};
+			});
+			res.json({
+				pagination: {
+					total: totalItems,
+					limit,
+					offset,
+				},
+				data: modifiedBeers,
+			});
+		} catch (error) {
+			console.error("Error fetching beers", error);
+			res.status(500).json({ error: "Error fetching beers" });
 		}
 	},
 );
