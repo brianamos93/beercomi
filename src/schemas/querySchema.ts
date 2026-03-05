@@ -20,6 +20,12 @@ export const searchQuerySchema = querySchema.extend({
 	q: z.string().optional()
 });
 
+export const deletedAtQuerySchema = querySchema.extend({
+  deleted: z.enum(["true", "false", "all"]).optional(),
+});
+
 export type SearchQueryType = z.infer<typeof searchQuerySchema>
 
 export type QueryType = z.infer<typeof querySchema>;
+
+export type DeletedAtQueryType = z.infer<typeof deletedAtQuerySchema>;
