@@ -12,6 +12,8 @@ import {
 	EditBrewerySchema,
 } from "../schemas/brewerySchemas";
 import {
+	deletedAtQuerySchema,
+	DeletedAtQueryType,
 	querySchema,
 	QueryType,
 	searchQuerySchema,
@@ -72,6 +74,13 @@ async function brewerylookup(breweryID: string) {
 	);
 }
 
+async function softDeletedBreweryLookup(breweryID: string) {
+	return await pool.query(
+		"SELECT id, name, location, date_of_founding, author_id FROM breweries WHERE id = $1 AND deleted_at IS NOT NULL",
+		[breweryID],
+	);
+}
+
 async function breweryUser(breweryID: string) {
 	return await pool.query("SELECT author_id FROM breweries WHERE id = $1", [
 		breweryID,
@@ -85,27 +94,26 @@ async function breweryCoverImageLookup(breweryID: string) {
 }
 
 router.get(
-  "/",
-  express.json(),
-  validate({ query: searchQuerySchema }),
-  async (
-    req: Request<Record<string, never>, unknown, unknown, SearchQueryType>,
-    res: Response,
-  ) => {
-    try {
-      const limit = Number(req.query.limit) || 10;
-      const offset = Number(req.query.offset) || 0;
-      const searchQuery = req.query.q ? `%${req.query.q}%` : null;
+	"/",
+	express.json(),
+	validate({ query: searchQuerySchema }),
+	async (
+		req: Request<Record<string, never>, unknown, unknown, SearchQueryType>,
+		res: Response,
+	) => {
+		try {
+			const limit = Number(req.query.limit) || 10;
+			const offset = Number(req.query.offset) || 0;
+			const searchQuery = req.query.q ? `%${req.query.q}%` : null;
 
+			const filters: string[] = ["breweries.deleted_at IS NULL"];
+			const filterParams: any[] = [];
 
-      const filters: string[] = ["breweries.deleted_at IS NULL"];
-      const filterParams: any[] = [];
+			if (searchQuery) {
+				filterParams.push(searchQuery);
+				const paramIndex = filterParams.length;
 
-      if (searchQuery) {
-        filterParams.push(searchQuery);
-        const paramIndex = filterParams.length;
-
-        filters.push(`
+				filters.push(`
           (
             breweries.name ILIKE $${paramIndex}
             OR breweries.location ILIKE $${paramIndex}
@@ -114,19 +122,19 @@ router.get(
             OR breweries.date_updated::TEXT ILIKE $${paramIndex}
           )
         `);
-      }
+			}
 
-      const whereClause = `WHERE ${filters.join(" AND ")}`;
+			const whereClause = `WHERE ${filters.join(" AND ")}`;
 
-      const mainParams = [...filterParams];
+			const mainParams = [...filterParams];
 
-      mainParams.push(limit);
-      const limitParamIndex = mainParams.length;
+			mainParams.push(limit);
+			const limitParamIndex = mainParams.length;
 
-      mainParams.push(offset);
-      const offsetParamIndex = mainParams.length;
+			mainParams.push(offset);
+			const offsetParamIndex = mainParams.length;
 
-      const mainQuery = `
+			const mainQuery = `
         SELECT 
           breweries.id, 
           breweries.name, 
@@ -145,36 +153,33 @@ router.get(
         OFFSET $${offsetParamIndex}
       `;
 
-
-      const countQuery = `
+			const countQuery = `
         SELECT COUNT(*) 
         FROM breweries
         ${whereClause}
       `;
 
+			const [breweriesResult, countResult] = await Promise.all([
+				pool.query(mainQuery, mainParams),
+				pool.query(countQuery, filterParams),
+			]);
 
+			const breweries: Brewery[] = breweriesResult.rows;
+			const totalItems = parseInt(countResult.rows[0].count, 10);
 
-      const [breweriesResult, countResult] = await Promise.all([
-        pool.query(mainQuery, mainParams),
-        pool.query(countQuery, filterParams),
-      ]);
-
-      const breweries: Brewery[] = breweriesResult.rows;
-      const totalItems = parseInt(countResult.rows[0].count, 10);
-
-      res.json({
-        pagination: {
-          total: totalItems,
-          limit,
-          offset,
-        },
-        data: breweries,
-      });
-    } catch (error) {
-      console.error("Error fetching breweries:", error);
-      res.status(500).json({ error: "Error fetching breweries" });
-    }
-  },
+			res.json({
+				pagination: {
+					total: totalItems,
+					limit,
+					offset,
+				},
+				data: breweries,
+			});
+		} catch (error) {
+			console.error("Error fetching breweries:", error);
+			res.status(500).json({ error: "Error fetching breweries" });
+		}
+	},
 );
 
 router.get("/list", express.json(), async (req: Request, res: Response) => {
@@ -438,7 +443,7 @@ router.delete(
 	express.json(),
 	validate({ params: idParamSchema }),
 	activityLogger({
-		action: "brewery_delete",
+		action: "brewery_soft_delete",
 		entityType: "breweries",
 		getEntityId: (req) => req.params.id,
 	}),
@@ -479,66 +484,6 @@ router.delete(
 	},
 );
 
-// Get all soft-deleted breweries (admin only)
-router.get(
-	"/deleted",
-	authenticationHandler,
-	express.json(),
-	validate({ query: querySchema }),
-	async (
-		req: Request<Record<string, never>, unknown, unknown, QueryType>,
-		res: Response,
-	) => {
-		try {
-			if (req.user?.role !== "admin") {
-				return res.status(403).json({ error: "User not authorized" });
-			}
-
-			const limit = req.query.limit || 10;
-			const offset = req.query.offset || 0;
-
-			const mainQuery = `
-            SELECT 
-                breweries.id,
-                   breweries.name,
-                breweries.location,
-                breweries.date_of_founding,
-                breweries.date_created,
-                breweries.date_updated,
-                breweries.deleted_at,
-                breweries.author_id,
-                brewery_authors.display_name AS author_name
-                FROM breweries
-                LEFT JOIN users AS brewery_authors 
-                    ON breweries.author_id = brewery_authors.id
-                WHERE breweries.deleted_at IS NOT NULL
-                ORDER BY breweries.deleted_at DESC
-                LIMIT $1 OFFSET $2
-            `;
-
-			const countQuery = `SELECT COUNT(*) FROM breweries WHERE deleted_at IS NOT NULL`;
-			const [breweriesResult, countResult] = await Promise.all([
-				pool.query(mainQuery, [limit, offset]),
-				pool.query(countQuery),
-			]);
-
-			const breweries: Brewery[] = breweriesResult.rows;
-			const totalItems = parseInt(countResult.rows[0].count);
-
-			res.json({
-				pagination: {
-					total: totalItems,
-					limit,
-					offset,
-				},
-				data: breweries,
-			});
-		} catch (error) {
-			console.error("Error fetching deleted breweries", error);
-			res.status(500).json({ error: "Error fetching deleted breweries" });
-		}
-	},
-);
 
 // Get a specific soft-deleted brewery with its beers (admin only)
 router.get(
@@ -631,6 +576,53 @@ router.get(
 	},
 );
 
+router.put(
+	"/admin/undo/delete/:id",
+	authenticationHandler,
+	express.json(),
+	validate({ params: idParamSchema }),
+	activityLogger({
+		action: "brewery_undo_soft_delete",
+		entityType: "breweries",
+		getEntityId: (req) => req.params.id,
+	}),
+	async (req: Request, res: Response) => {
+		const breweryID = req.params.id;
+		const brewerycheck = await softDeletedBreweryLookup(breweryID);
+		if (brewerycheck.rowCount == 0) {
+			return res.status(401).json({ error: "brewery does not exist or is not soft deleted" });
+		}
+		const decodedToken = decodeToken(req);
+		if (!decodedToken.id) {
+			return res.status(401).json({ error: "token invalid" });
+		}
+		if (!req.user || !req.user.id) {
+			return res.status(401).json({ error: "Unauthorized: user not found" });
+		}
+		const breweryUserResult = await breweryUser(breweryID);
+		const userData = await userIdGet(req.user.id);
+		const userRole = userData.rows[0].role;
+
+		if (
+			req.user.id !== breweryUserResult.rows[0].author_id &&
+			userRole !== "admin"
+		) {
+			return res.status(400).json({ error: "User not authorized" });
+		}
+
+		try {
+			await pool.query(
+				"UPDATE breweries SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL",
+				[breweryID],
+			);
+			res.sendStatus(200);
+		} catch (error) {
+			console.error("Error undoing delete brewery", error);
+			res.status(500).json({ error: "Error undoing delete brewery" });
+		}
+	},
+);
+
 // Hard delete brewery (admin only)
 router.delete(
 	"/admin/hard-delete/:id",
@@ -649,79 +641,186 @@ router.delete(
 			return res.status(403).json({ error: "User not authorized" });
 		}
 
-		const breweryResult = await pool.query(
-			"SELECT id FROM breweries WHERE id = $1",
-			[breweryID],
-		);
+		const client = await pool.connect();
 
-		if (breweryResult.rowCount === 0) {
-			return res.status(404).json({ error: "Brewery not found" });
-		}
+		const filesToDelete: string[] = [];
 
 		try {
-			// Get cover image before deleting
-			const breweryCoverImageRes = await breweryCoverImageLookup(breweryID);
-			if (breweryCoverImageRes.rowCount && breweryCoverImageRes.rowCount > 0) {
-				const coverImagePathAndFile = breweryCoverImageRes.rows[0].cover_image;
-				if (coverImagePathAndFile) {
-					const filePath = path.join(__dirname, "..", coverImagePathAndFile);
-					if (fs.existsSync(filePath)) {
-						fs.unlinkSync(filePath);
-					}
+			await client.query("BEGIN");
+
+			const breweryResult = await client.query(
+				"SELECT id FROM breweries WHERE id = $1",
+				[breweryID],
+			);
+
+			if (breweryResult.rowCount === 0) {
+				await client.query("ROLLBACK");
+				return res.status(404).json({ error: "Brewery not found" });
+			}
+
+			const breweryCoverImageRes = await breweryCoverImageLookup(
+				breweryID,
+			);
+
+			if (breweryCoverImageRes.rowCount) {
+				const coverImagePath =
+					breweryCoverImageRes.rows[0].cover_image;
+
+				if (coverImagePath) {
+					filesToDelete.push(
+						path.join(__dirname, "..", coverImagePath),
+					);
 				}
 			}
 
-			// Get all beers for this brewery
-			const beersResult = await pool.query(
-				"SELECT id FROM beers WHERE brewery_id = $1",
+			const reviewPhotos = await client.query(
+				`
+				SELECT review_photos.photo_url
+				FROM review_photos
+				INNER JOIN beer_reviews
+					ON review_photos.review_id = beer_reviews.id
+				INNER JOIN beers
+					ON beer_reviews.beer_id = beers.id
+				WHERE beers.brewery_id = $1
+				`,
 				[breweryID],
 			);
 
-			// Delete all review photos for reviews of beers in this brewery
-			for (const beer of beersResult.rows) {
-				const reviewPhotos = await pool.query(
-					`SELECT review_photos.id, review_photos.photo_url FROM review_photos
-                    INNER JOIN beer_reviews ON review_photos.review_id = beer_reviews.id
-                    WHERE beer_reviews.beer_id = $1`,
-					[beer.id],
-				);
-
-				for (const photo of reviewPhotos.rows) {
-					const filePath = path.join(__dirname, "..", photo.photo_url);
-					if (fs.existsSync(filePath)) {
-						fs.unlinkSync(filePath);
-					}
+			for (const photo of reviewPhotos.rows) {
+				if (photo.photo_url) {
+					filesToDelete.push(
+						path.join(__dirname, "..", photo.photo_url),
+					);
 				}
 			}
 
-			// Hard delete all review photos and reviews for beers in this brewery
-			await pool.query(
-				`DELETE FROM review_photos WHERE review_id IN (
-                    SELECT beer_reviews.id FROM beer_reviews
-                    WHERE beer_reviews.beer_id IN (
-                        SELECT id FROM beers WHERE brewery_id = $1
-                    )
-                )`,
+
+			await client.query(
+				`DELETE FROM review_photos
+				 WHERE review_id IN (
+					 SELECT id FROM beer_reviews
+					 WHERE beer_id IN (
+						 SELECT id FROM beers WHERE brewery_id = $1
+					 )
+				 )`,
 				[breweryID],
 			);
 
-			await pool.query(
-				`DELETE FROM beer_reviews WHERE beer_id IN (
-                    SELECT id FROM beers WHERE brewery_id = $1
-                )`,
+			await client.query(
+				`DELETE FROM beer_reviews
+				 WHERE beer_id IN (
+					 SELECT id FROM beers WHERE brewery_id = $1
+				 )`,
 				[breweryID],
 			);
 
-			// Hard delete all beers for this brewery
-			await pool.query("DELETE FROM beers WHERE brewery_id = $1", [breweryID]);
+			await client.query(
+				`DELETE FROM beers WHERE brewery_id = $1`,
+				[breweryID],
+			);
 
-			// Hard delete the brewery
-			await pool.query("DELETE FROM breweries WHERE id = $1", [breweryID]);
+			await client.query(
+				`DELETE FROM breweries WHERE id = $1`,
+				[breweryID],
+			);
 
-			res.status(200).json({ message: "Brewery permanently deleted" });
+			await client.query("COMMIT");
+
+			for (const filePath of filesToDelete) {
+				try {
+					if (fs.existsSync(filePath)) {
+						fs.unlinkSync(filePath);
+					}
+				} catch (fileErr) {
+					console.error("File deletion failed:", filePath, fileErr);
+				}
+			}
+
+			res.status(200).json({
+				message: "Brewery permanently deleted",
+			});
 		} catch (error) {
+			await client.query("ROLLBACK");
 			console.error("Error hard deleting brewery", error);
-			res.status(500).json({ error: "Error hard deleting brewery" });
+			res.status(500).json({
+				error: "Error hard deleting brewery",
+			});
+		} finally {
+			client.release();
+		}
+	},
+);
+
+// Get all / deleted
+router.get(
+	"/admin",
+	authenticationHandler,
+	express.json(),
+	validate({ query: deletedAtQuerySchema }),
+	async (
+		req: Request<Record<string, never>, unknown, unknown, DeletedAtQueryType>,
+		res: Response,
+	) => {
+		try {
+			if (req.user?.role !== "admin") {
+				return res.status(403).json({ error: "User not authorized" });
+			}
+
+			const limit = Number(req.query.limit) || 10;
+			const offset = Number(req.query.offset) || 0;
+			const deletedFilter = req.query.deleted ?? "all";
+
+			let whereClause = "";
+			if (deletedFilter === "true") {
+				whereClause = "WHERE breweries.deleted_at IS NOT NULL";
+			} else if (deletedFilter === "false") {
+				whereClause = "WHERE breweries.deleted_at IS NULL";
+			}
+
+			const mainQuery = `
+					SELECT 
+						breweries.id,
+						breweries.name,
+						breweries.location,
+						breweries.date_of_founding,
+						breweries.date_created,
+						breweries.date_updated,
+						breweries.deleted_at,
+						breweries.author_id,
+						brewery_authors.display_name AS author_name
+					FROM breweries
+					LEFT JOIN users AS brewery_authors 
+						ON breweries.author_id = brewery_authors.id
+					${whereClause}
+					ORDER BY breweries.deleted_at DESC
+					LIMIT $1 OFFSET $2
+					`;
+
+			const countQuery = `
+					SELECT COUNT(*) 
+					FROM breweries
+					${whereClause}
+					`;
+					
+			const [breweriesResult, countResult] = await Promise.all([
+				pool.query(mainQuery, [limit, offset]),
+				pool.query(countQuery),
+			]);
+
+			const breweries: Brewery[] = breweriesResult.rows;
+			const totalItems = parseInt(countResult.rows[0].count);
+
+			res.json({
+				pagination: {
+					total: totalItems,
+					limit,
+					offset,
+				},
+				data: breweries,
+			});
+		} catch (error) {
+			console.error("Error fetching deleted breweries", error);
+			res.status(500).json({ error: "Error fetching deleted breweries" });
 		}
 	},
 );
