@@ -8,7 +8,7 @@ import { FileFilterCallback } from "multer";
 import sharp from "sharp";
 import { BeerSchemaBase, EditBeerSchema } from "../schemas/beerSchemas";
 import { CreateReviewSchema, EditReviewSchema } from "../schemas/reviewSchemas";
-import { querySchema, QueryType } from "../schemas/querySchema";
+import { deletedAtQuerySchema, DeletedAtQueryType, querySchema, QueryType } from "../schemas/querySchema";
 const { authenticationHandler } = require("../utils/middleware");
 import express from "express";
 import validate from "express-zod-safe";
@@ -87,7 +87,13 @@ async function beerUser(beerID: string) {
 }
 
 async function reviewLookup(reviewID: string) {
-	return await pool.query("SELECT id FROM beer_reviews WHERE id = $1", [
+	return await pool.query("SELECT id FROM beer_reviews WHERE id = $1 AND deleted_at IS NULL", [
+		reviewID,
+	]);
+}
+
+async function softDeletedReviewLookup(reviewID: string) {
+	return await pool.query("SELECT id FROM beer_reviews WHERE id = $1 AND deleted_at IS NOT NULL", [
 		reviewID,
 	]);
 }
@@ -704,129 +710,154 @@ router.post(
 );
 //update review
 router.put(
-	"/review/:id",
-	authenticationHandler,
-	upload.array("photos", 4),
-	fileValidator,
-	validate({ body: EditReviewSchema }),
-	activityLogger({
-		action: "review_edited",
-		entityType: "reviews",
-		getEntityId: (_req, res) => res.locals.editedReview,
-	}),
-	async (req: Request, res: Response) => {
-		const reviewID = req.params.id;
-		const client = await pool.connect();
-		const { rating, review, beer_id, deleted } = req.body;
-		const parsedDeletedData = JSON.parse(deleted);
-		const reviewcheck = await reviewLookup(reviewID);
-		const numberRating = Number(rating);
-		const trimmedBeer_id = req.body.beer_id.trim();
+  "/review/:id",
+  authenticationHandler,
+  upload.array("photos", 4),
+  fileValidator,
+  (req, res, next) => {
+    console.log("req.body:", req.body);
+    console.log("deleted:", req.body.deleted);
+    console.log("typeof deleted:", typeof req.body.deleted);
+    next();
+  },
+  validate({params: idParamSchema, body: EditReviewSchema }),
+  activityLogger({
+    action: "review_edited",
+    entityType: "reviews",
+    getEntityId: (_req, res) => res.locals.editedReview,
+  }),
+  async (req: Request, res: Response) => {
+    const reviewID = req.params.id;
+    const client = await pool.connect();
 
-		if (reviewcheck.rowCount == 0) {
-			return res.status(401).json({ error: "Review does not exist" });
-		}
+    try {
+      if (!req.user?.id) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
 
-		if (!req.user || !req.user.id) {
-			return res.status(401).json({ error: "Unauthorized: user not found" });
-		}
-		const userId = req.user.id;
-		const reviewuser = await reviewUser(reviewID);
+      const { rating, review, beer_id, deleted } = req.body;
 
-		if (userId !== reviewuser.rows[0].author_id) {
-			return res.status(400).json({ error: "User not authorized" });
-		}
+      if (!rating || !review || !beer_id) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
 
-		const files = req.files as Express.Multer.File[];
-		const positionNumbers: number[] = [];
+      const numberRating = Number(rating);
+      const trimmedBeerId = beer_id.trim();
+      const userId = req.user.id;
 
-		try {
-			if (!rating || !review || !beer_id) {
-				return res.status(400).json({ error: "Missing required fields" });
-			}
+      const reviewCheck = await reviewLookup(reviewID);
 
-			await client.query("BEGIN");
+      if (reviewCheck.rowCount === 0) {
+        return res.status(404).json({ error: "Review does not exist" });
+      }
 
-			client.query(
-				"UPDATE beer_reviews SET rating = $1, review = $2, beer_id = $3 WHERE id = $4",
-				[numberRating, review, trimmedBeer_id, reviewID],
-			);
+      const reviewUserCheck = await reviewUser(reviewID);
 
-			if (parsedDeletedData && parsedDeletedData.length > 0) {
-				parsedDeletedData.forEach(async (fileId: string) => {
-					const photoCheck = await photoLookup(fileId);
-					if ((photoCheck?.rowCount ?? 0) > 0) {
-						if (!req.user || photoCheck.rows[0].user_id != req.user.id) {
-							return res
-								.status(401)
-								.json({ error: "Unauthorized: user not found" });
-						}
-						const filePath = path.join(
-							__dirname,
-							"..",
-							photoCheck.rows[0].photo_url,
-						);
-						if (fs.existsSync(filePath)) {
-							fs.unlinkSync(filePath);
-						}
-						await pool.query("DELETE FROM review_photos WHERE id = $1", [
-							fileId,
-						]);
-					}
-				});
-			}
+      if (userId !== reviewUserCheck.rows[0].author_id) {
+        return res.status(403).json({ error: "User not authorized" });
+      }
 
-			if (files && files.length > 0) {
-				const requestPhotosCount = files.length;
-				const reviewPhotosData = await reviewPhotoLookup(reviewID);
-				const reviewPhotoNumber = reviewPhotosData.rowCount;
-				reviewPhotosData.rows.forEach((photo) => {
-					positionNumbers.push(photo.position);
-				});
-				if (
-					reviewPhotoNumber != null &&
-					(reviewPhotoNumber === 4 ||
-						requestPhotosCount + reviewPhotoNumber === 4)
-				) {
-					return res.status(401).json({ error: "Photo limit exceeded" });
-				}
-				// Find the next available position for each new file
-				const usedPositions = new Set(positionNumbers);
+      const files = req.files as Express.Multer.File[];
 
-				const photoInserts = files.map(async (file) => {
-					// Find the lowest unused position (0-3)
-					let position = 0;
-					while (usedPositions.has(position)) {
-						position++;
-					}
-					usedPositions.add(position);
+      await client.query("BEGIN");
 
-					const uploadPath = path.join(__dirname, "..", `uploads/`);
-					if (!fs.existsSync(uploadPath)) {
-						fs.mkdirSync(uploadPath, { recursive: true });
-					}
-					const newFileName = `${reviewID}-${position}.webp`;
-					const uploadFilePathAndFile = path.join(uploadPath, newFileName);
-					await sharp(file.buffer)
-						.webp({ lossless: true })
-						.toFile(uploadFilePathAndFile);
-					const relativeUploadFilePathAndFile = `/uploads/${newFileName}`;
-					client.query(
-						`INSERT INTO review_photos (review_id, photo_url, position, user_id)
-				VALUES ($1, $2, $3, $4)`,
-						[reviewID, relativeUploadFilePathAndFile, position, userId],
-					);
-				});
-				await Promise.all(photoInserts);
-			}
-			await client.query("COMMIT");
-			res.locals.createdReview = reviewID;
-			res.status(200).json({ message: "Review updated successfully" });
-		} catch (error) {
-			console.log(error);
-			res.status(500).json({ error: "Error updating review" });
-		}
-	},
+      // Update review
+      await client.query(
+        `UPDATE beer_reviews
+         SET rating = $1, review = $2, beer_id = $3
+         WHERE id = $4`,
+        [numberRating, review, trimmedBeerId, reviewID]
+      );
+
+      // Delete requested photos
+      for (const fileId of deleted) {
+        const photoCheck = await photoLookup(fileId);
+
+        if (photoCheck.rowCount === 0) continue;
+
+        if (photoCheck.rows[0].user_id !== userId) {
+          throw new Error("Unauthorized photo deletion");
+        }
+
+        const filePath = path.join(
+          __dirname,
+          "..",
+          photoCheck.rows[0].photo_url
+        );
+
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+
+        await client.query(
+          "DELETE FROM review_photos WHERE id = $1",
+          [fileId]
+        );
+      }
+
+      // Handle new uploads
+      if (files && files.length > 0) {
+        const reviewPhotos = await reviewPhotoLookup(reviewID);
+		const currentCount = reviewPhotos.rowCount ?? 0;
+        const existingPositions = reviewPhotos.rows.map((p) => p.position);
+        const usedPositions = new Set(existingPositions);
+
+        const requestPhotosCount = files.length;
+
+        if (currentCount + requestPhotosCount > 4) {
+          return res.status(400).json({ error: "Photo limit exceeded" });
+        }
+
+        const uploadPath = path.join(__dirname, "..", "uploads");
+
+        if (!fs.existsSync(uploadPath)) {
+          fs.mkdirSync(uploadPath, { recursive: true });
+        }
+
+        for (const file of files) {
+          let position = 0;
+
+          while (usedPositions.has(position)) {
+            position++;
+          }
+
+          usedPositions.add(position);
+
+          const newFileName = `${reviewID}-${position}.webp`;
+          const filePath = path.join(uploadPath, newFileName);
+
+          await sharp(file.buffer)
+            .webp({ lossless: true })
+            .toFile(filePath);
+
+          const relativePath = `/uploads/${newFileName}`;
+
+          await client.query(
+            `INSERT INTO review_photos (review_id, photo_url, position, user_id)
+             VALUES ($1, $2, $3, $4)`,
+            [reviewID, relativePath, position, userId]
+          );
+        }
+      }
+
+      await client.query("COMMIT");
+
+      res.locals.editedReview = reviewID;
+
+      return res.status(200).json({
+        message: "Review updated successfully",
+      });
+    } catch (error) {
+      await client.query("ROLLBACK");
+      console.error(error);
+
+      return res.status(500).json({
+        error: "Error updating review",
+      });
+    } finally {
+      client.release();
+    }
+  }
 );
 
 //delete review photo
@@ -874,7 +905,7 @@ router.delete(
 	express.json(),
 	validate({ params: idParamSchema }),
 	activityLogger({
-		action: "review_delete",
+		action: "review_soft_delete",
 		entityType: "reviews",
 		getEntityId: (_req, res) => res.locals.deletedReview,
 	}),
@@ -905,7 +936,52 @@ router.delete(
 				[reviewID],
 			);
 			res.locals.deletedReview = reviewID;
-			res.sendStatus(200);
+			res.status(200).json({message: "Review soft deleted"});
+		} catch (error) {
+			console.error("Error deleting review", error);
+			res.status(500).json({ error: "Error deleting review" });
+		}
+	},
+);
+
+router.put(
+	"/review/delete/undo/:id",
+	authenticationHandler,
+	express.json(),
+	validate({ params: idParamSchema }),
+	activityLogger({
+		action: "review_undo_soft_delete",
+		entityType: "reviews",
+		getEntityId: (_req, res) => res.locals.deletedReview,
+	}),
+	async (req: Request, res: Response) => {
+		const reviewID = req.params.id;
+		const reviewcheck = await softDeletedReviewLookup(reviewID);
+		if (reviewcheck.rowCount == 0) {
+			return res.status(401).json({ error: "review does not exist or is not soft deleted" });
+		}
+		const decodedToken = decodeToken(req);
+		if (!decodedToken.id) {
+			return res.status(401).json({ error: "token invalid" });
+		}
+
+		const userId = req.user?.id;
+		const userRole = req.user?.role;
+		const reviewuser = await reviewUser(reviewID);
+		if (userId !== reviewuser.rows[0].author_id && userRole !== "admin") {
+			return res.status(400).json({ error: "User not authorized" });
+		}
+		try {
+			await pool.query(
+				"UPDATE beer_reviews SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL",
+				[reviewID],
+			);
+			await pool.query(
+				"UPDATE review_photos SET deleted_at = NULL WHERE review_id = $1 AND deleted_at IS NOT NULL",
+				[reviewID],
+			);
+			res.locals.deletedReview = reviewID;
+			res.status(200).json({message: "Review soft delete undone"});
 		} catch (error) {
 			console.error("Error deleting review", error);
 			res.status(500).json({ error: "Error deleting review" });
@@ -1434,13 +1510,14 @@ router.delete(
 		}
 	},
 );
+
 router.get(
-	"/admin/all",
+	"/admin/beers",
 	authenticationHandler,
 	express.json(),
-	validate({ query: querySchema }),
+	validate({ query: deletedAtQuerySchema }),
 	async (
-		req: Request<Record<string, never>, unknown, unknown, QueryType>,
+		req: Request<Record<string, never>, unknown, unknown, DeletedAtQueryType>,
 		res: Response,
 	) => {
 		try {
@@ -1450,28 +1527,50 @@ router.get(
 
 			const limit = req.query.limit || 10;
 			const offset = req.query.offset || 0;
+			const deleted = req.query.deleted || "false";
+
+			let whereClause = "";
+
+			if (deleted === "true") {
+				whereClause = "WHERE beers.deleted_at IS NOT NULL";
+			} else if (deleted === "false") {
+				whereClause = "WHERE beers.deleted_at IS NULL";
+			}
+			// deleted === "all" → no WHERE clause
+
 			const mainQuery = `
-			SELECT 
-			beers.id, 
-			beers.name, 
-			beers.brewery_id, 
-			breweries.name AS brewery_name, 
-			beers.description, beers.style, 
-			beers.ibu, 
-			beers.abv, 
-			beers.color, 
-			beers.cover_image, 
-			beers.date_updated, 
-			beers.author_id,
-			beer_authors.display_name AS author_name,
-			beer_authors.id AS author_id, -- beer author's user id
-			beers.deleted_at,
-			beers.date_created FROM beers LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
- 			LEFT JOIN breweries ON beers.brewery_id = breweries.id 
-			ORDER BY beers.date_updated DESC
-			LIMIT $1 OFFSET $2
-		`;
-			const countQuery = `SELECT COUNT(*) FROM beers`;
+				SELECT 
+					beers.id, 
+					beers.name, 
+					beers.brewery_id, 
+					breweries.name AS brewery_name, 
+					beers.description, 
+					beers.style, 
+					beers.ibu, 
+					beers.abv, 
+					beers.color, 
+					beers.cover_image, 
+					beers.date_updated, 
+					beers.author_id,
+					beer_authors.display_name AS author_name,
+					beer_authors.id AS author_id,
+					beers.deleted_at,
+					beers.date_created
+				FROM beers
+				LEFT JOIN users AS beer_authors 
+					ON beers.author_id = beer_authors.id
+				LEFT JOIN breweries 
+					ON beers.brewery_id = breweries.id
+				${whereClause}
+				ORDER BY beers.date_updated DESC
+				LIMIT $1 OFFSET $2
+			`;
+
+			const countQuery = `
+				SELECT COUNT(*)
+				FROM beers
+				${whereClause}
+			`;
 
 			const [beersResult, countResult] = await Promise.all([
 				pool.query(mainQuery, [limit, offset]),
@@ -1481,12 +1580,12 @@ router.get(
 			const totalItems = parseInt(countResult.rows[0].count);
 
 			const beers: Beer[] = beersResult.rows;
-			const modifiedBeers = beers.map((beer) => {
-				return {
-					...beer,
-					abv: beer.abv / 10,
-				};
-			});
+
+			const modifiedBeers = beers.map((beer) => ({
+				...beer,
+				abv: beer.abv / 10,
+			}));
+
 			res.json({
 				pagination: {
 					total: totalItems,
@@ -1503,70 +1602,75 @@ router.get(
 );
 
 router.get(
-	"/admin/deleted",
-	authenticationHandler,
+	"/admin/reviews",
 	express.json(),
-	validate({ query: querySchema }),
+	validate({ query: deletedAtQuerySchema }),
 	async (
-		req: Request<Record<string, never>, unknown, unknown, QueryType>,
+		req: Request<Record<string, never>, unknown, unknown, DeletedAtQueryType>,
 		res: Response,
 	) => {
 		try {
-			if (req.user?.role !== "admin") {
-				return res.status(403).json({ error: "User not authorized" });
-			}
-
 			const limit = req.query.limit || 10;
 			const offset = req.query.offset || 0;
-			const mainQuery = `
-			SELECT 
-			beers.id, 
-			beers.name, 
-			beers.brewery_id, 
-			breweries.name AS brewery_name, 
-			beers.description, beers.style, 
-			beers.ibu, 
-			beers.abv, 
-			beers.color, 
-			beers.cover_image, 
-			beers.date_updated, 
-			beers.author_id,
-			beer_authors.display_name AS author_name,
-			beer_authors.id AS author_id, -- beer author's user id
-			beers.deleted_at,
-			beers.date_created FROM beers LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
- 			LEFT JOIN breweries ON beers.brewery_id = breweries.id 
-			WHERE beers.deleted_at IS NOT NULL
-			ORDER BY beers.date_updated DESC
-			LIMIT $1 OFFSET $2
-		`;
-			const countQuery = `SELECT COUNT(*) FROM beers WHERE deleted_at IS NOT NULL`;
+			const deleted = req.query.deleted || "false";
 
-			const [beersResult, countResult] = await Promise.all([
+			let whereClause = "WHERE b.deleted_at IS NULL";
+
+			if (deleted === "true") {
+				whereClause += " AND br.deleted_at IS NOT NULL";
+			} else if (deleted === "false") {
+				whereClause += " AND br.deleted_at IS NULL";
+			}
+
+			const mainQuery = `
+				SELECT 
+					br.id,
+					br.review,
+					br.rating,
+					br.deleted_at,
+					br.author_id,
+					u.display_name AS author_name,
+					br.beer_id,
+					b.name AS beer_name,
+					bw.id AS brewery_id,
+					bw.name AS brewery_name,
+					br.date_created,
+					br.date_updated,
+					br.deleted_at
+				FROM beer_reviews br
+				LEFT JOIN users u ON br.author_id = u.id
+				LEFT JOIN beers b ON br.beer_id = b.id
+				LEFT JOIN breweries bw ON b.brewery_id = bw.id
+				${whereClause}
+				ORDER BY br.date_updated DESC
+				LIMIT $1 OFFSET $2
+			`;
+
+			const countQuery = `
+				SELECT COUNT(*)
+				FROM beer_reviews br
+				LEFT JOIN beers b ON br.beer_id = b.id
+				${whereClause}
+			`;
+
+			const [reviewsResult, countResult] = await Promise.all([
 				pool.query(mainQuery, [limit, offset]),
 				pool.query(countQuery),
 			]);
 
 			const totalItems = parseInt(countResult.rows[0].count);
 
-			const beers: Beer[] = beersResult.rows;
-			const modifiedBeers = beers.map((beer) => {
-				return {
-					...beer,
-					abv: beer.abv / 10,
-				};
-			});
 			res.json({
 				pagination: {
 					total: totalItems,
 					limit,
 					offset,
 				},
-				data: modifiedBeers,
+				data: reviewsResult.rows,
 			});
 		} catch (error) {
-			console.error("Error fetching beers", error);
-			res.status(500).json({ error: "Error fetching beers" });
+			console.error("Error fetching reviews", error);
+			res.status(500).json({ error: "Error fetching reviews" });
 		}
 	},
 );
