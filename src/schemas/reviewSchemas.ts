@@ -29,15 +29,24 @@ export const CreateReviewSchema = z.object({
   review: z
     .string()
     .trim()
-    .min(10, { message: "Review must be at least 10 character long." }),
+    .min(10, { message: "Review must be at least 10 characters long." }),
+
   rating: z.coerce.number(),
+
   beer_id: z.string(),
 });
 
+const jsonArray = z.preprocess((val) => {
+  if (typeof val === "string") {
+    return JSON.parse(val);
+  }
+  return val;
+}, z.array(z.string()));
+
 export const EditReviewSchema = CreateReviewSchema.extend({
-	kept: z.array(z.string()),
-	deleted: z.array(z.string())
-})
+  kept: jsonArray.optional(),
+  deleted: jsonArray.optional(),
+});
 
 export type CreateReviewInput = z.infer<typeof CreateReviewSchema>;
 
