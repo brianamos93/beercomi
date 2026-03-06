@@ -449,17 +449,16 @@ router.delete(
 	}),
 	async (req: Request, res: Response) => {
 		const breweryID = req.params.id;
+
 		const brewerycheck = await brewerylookup(breweryID);
-		if (brewerycheck.rowCount == 0) {
+		if (brewerycheck.rowCount === 0) {
 			return res.status(401).json({ error: "brewery does not exist" });
 		}
-		const decodedToken = decodeToken(req);
-		if (!decodedToken.id) {
-			return res.status(401).json({ error: "token invalid" });
-		}
-		if (!req.user || !req.user.id) {
+
+		if (!req.user?.id) {
 			return res.status(401).json({ error: "Unauthorized: user not found" });
 		}
+
 		const breweryUserResult = await breweryUser(breweryID);
 		const userData = await userIdGet(req.user.id);
 		const userRole = userData.rows[0].role;
@@ -471,19 +470,55 @@ router.delete(
 			return res.status(400).json({ error: "User not authorized" });
 		}
 
+		const client = await pool.connect();
+		const deletedAt = new Date();
+
 		try {
-			await pool.query(
-				"UPDATE breweries SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
-				[breweryID],
+			await client.query("BEGIN");
+
+			// delete reviews
+			await client.query(
+				`UPDATE beer_reviews r
+				SET deleted_at = $2
+				FROM beers b
+				WHERE r.beer_id = b.id
+				AND b.brewery_id = $1
+				AND r.deleted_at IS NULL`,
+				[breweryID, deletedAt]
 			);
-			res.sendStatus(200);
+
+			// delete beers
+			await client.query(
+				`UPDATE beers
+				SET deleted_at = $2
+				WHERE brewery_id = $1
+				AND deleted_at IS NULL`,
+				[breweryID, deletedAt]
+			);
+
+			// delete brewery
+			await client.query(
+				`UPDATE breweries
+				SET deleted_at = $2
+				WHERE id = $1
+				AND deleted_at IS NULL`,
+				[breweryID, deletedAt]
+			);
+
+			await client.query("COMMIT");
+
+			res.status(200).json({
+				message: "Brewery and related beers/reviews soft deleted",
+			});
 		} catch (error) {
+			await client.query("ROLLBACK");
 			console.error("Error deleting brewery", error);
 			res.status(500).json({ error: "Error deleting brewery" });
+		} finally {
+			client.release();
 		}
 	},
 );
-
 
 // Get a specific soft-deleted brewery with its beers (admin only)
 router.get(
@@ -588,17 +623,18 @@ router.put(
 	}),
 	async (req: Request, res: Response) => {
 		const breweryID = req.params.id;
+
 		const brewerycheck = await softDeletedBreweryLookup(breweryID);
-		if (brewerycheck.rowCount == 0) {
-			return res.status(401).json({ error: "brewery does not exist or is not soft deleted" });
+		if (brewerycheck.rowCount === 0) {
+			return res
+				.status(401)
+				.json({ error: "brewery does not exist or is not soft deleted" });
 		}
-		const decodedToken = decodeToken(req);
-		if (!decodedToken.id) {
-			return res.status(401).json({ error: "token invalid" });
-		}
-		if (!req.user || !req.user.id) {
+
+		if (!req.user?.id) {
 			return res.status(401).json({ error: "Unauthorized: user not found" });
 		}
+
 		const breweryUserResult = await breweryUser(breweryID);
 		const userData = await userIdGet(req.user.id);
 		const userRole = userData.rows[0].role;
@@ -610,15 +646,58 @@ router.put(
 			return res.status(400).json({ error: "User not authorized" });
 		}
 
+		const client = await pool.connect();
+
 		try {
-			await pool.query(
-				"UPDATE breweries SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL",
-				[breweryID],
+			await client.query("BEGIN");
+
+			// Get the deleted_at timestamp from the brewery
+			const breweryResult = await client.query(
+				`SELECT deleted_at FROM breweries WHERE id = $1`,
+				[breweryID]
 			);
-			res.sendStatus(200);
+
+			const deletedAt = breweryResult.rows[0].deleted_at;
+
+			// restore reviews deleted in same transaction
+			await client.query(
+				`UPDATE beer_reviews r
+				SET deleted_at = NULL
+				FROM beers b
+				WHERE r.beer_id = b.id
+				AND b.brewery_id = $1
+				AND r.deleted_at = $2`,
+				[breweryID, deletedAt]
+			);
+
+			// restore beers deleted in same transaction
+			await client.query(
+				`UPDATE beers
+				SET deleted_at = NULL
+				WHERE brewery_id = $1
+				AND deleted_at = $2`,
+				[breweryID, deletedAt]
+			);
+
+			// restore brewery
+			await client.query(
+				`UPDATE breweries
+				SET deleted_at = NULL
+				WHERE id = $1`,
+				[breweryID]
+			);
+
+			await client.query("COMMIT");
+
+			res.status(200).json({
+				message: "Brewery and related beers/reviews restored",
+			});
 		} catch (error) {
+			await client.query("ROLLBACK");
 			console.error("Error undoing delete brewery", error);
 			res.status(500).json({ error: "Error undoing delete brewery" });
+		} finally {
+			client.release();
 		}
 	},
 );
@@ -642,15 +721,14 @@ router.delete(
 		}
 
 		const client = await pool.connect();
-
 		const filesToDelete: string[] = [];
 
 		try {
 			await client.query("BEGIN");
 
 			const breweryResult = await client.query(
-				"SELECT id FROM breweries WHERE id = $1",
-				[breweryID],
+				`SELECT cover_image FROM breweries WHERE id = $1`,
+				[breweryID]
 			);
 
 			if (breweryResult.rowCount === 0) {
@@ -658,43 +736,50 @@ router.delete(
 				return res.status(404).json({ error: "Brewery not found" });
 			}
 
-			const breweryCoverImageRes = await breweryCoverImageLookup(
-				breweryID,
+			// brewery cover image
+			if (breweryResult.rows[0].cover_image) {
+				filesToDelete.push(
+					path.join(__dirname, "..", breweryResult.rows[0].cover_image)
+				);
+			}
+
+			// beer cover images
+			const beerImages = await client.query(
+				`SELECT cover_image FROM beers WHERE brewery_id = $1`,
+				[breweryID]
 			);
 
-			if (breweryCoverImageRes.rowCount) {
-				const coverImagePath =
-					breweryCoverImageRes.rows[0].cover_image;
-
-				if (coverImagePath) {
+			for (const beer of beerImages.rows) {
+				if (beer.cover_image) {
 					filesToDelete.push(
-						path.join(__dirname, "..", coverImagePath),
+						path.join(__dirname, "..", beer.cover_image)
 					);
 				}
 			}
 
+			// review photos
 			const reviewPhotos = await client.query(
 				`
-				SELECT review_photos.photo_url
-				FROM review_photos
-				INNER JOIN beer_reviews
-					ON review_photos.review_id = beer_reviews.id
-				INNER JOIN beers
-					ON beer_reviews.beer_id = beers.id
-				WHERE beers.brewery_id = $1
+				SELECT rp.photo_url
+				FROM review_photos rp
+				INNER JOIN beer_reviews br
+					ON rp.review_id = br.id
+				INNER JOIN beers b
+					ON br.beer_id = b.id
+				WHERE b.brewery_id = $1
 				`,
-				[breweryID],
+				[breweryID]
 			);
 
 			for (const photo of reviewPhotos.rows) {
 				if (photo.photo_url) {
 					filesToDelete.push(
-						path.join(__dirname, "..", photo.photo_url),
+						path.join(__dirname, "..", photo.photo_url)
 					);
 				}
 			}
 
-
+			// delete review photos
 			await client.query(
 				`DELETE FROM review_photos
 				 WHERE review_id IN (
@@ -703,29 +788,33 @@ router.delete(
 						 SELECT id FROM beers WHERE brewery_id = $1
 					 )
 				 )`,
-				[breweryID],
+				[breweryID]
 			);
 
+			// delete reviews
 			await client.query(
 				`DELETE FROM beer_reviews
 				 WHERE beer_id IN (
 					 SELECT id FROM beers WHERE brewery_id = $1
 				 )`,
-				[breweryID],
+				[breweryID]
 			);
 
+			// delete beers
 			await client.query(
 				`DELETE FROM beers WHERE brewery_id = $1`,
-				[breweryID],
+				[breweryID]
 			);
 
+			// delete brewery
 			await client.query(
 				`DELETE FROM breweries WHERE id = $1`,
-				[breweryID],
+				[breweryID]
 			);
 
 			await client.query("COMMIT");
 
+			// delete files from disk
 			for (const filePath of filesToDelete) {
 				try {
 					if (fs.existsSync(filePath)) {
@@ -737,7 +826,8 @@ router.delete(
 			}
 
 			res.status(200).json({
-				message: "Brewery permanently deleted",
+				message:
+					"Brewery, beers, reviews, and all associated images permanently deleted",
 			});
 		} catch (error) {
 			await client.query("ROLLBACK");
@@ -753,7 +843,7 @@ router.delete(
 
 // Get all / deleted
 router.get(
-	"/admin",
+	"/admin/view",
 	authenticationHandler,
 	express.json(),
 	validate({ query: deletedAtQuerySchema }),
@@ -792,7 +882,7 @@ router.get(
 					LEFT JOIN users AS brewery_authors 
 						ON breweries.author_id = brewery_authors.id
 					${whereClause}
-					ORDER BY breweries.deleted_at DESC
+					ORDER BY breweries.deleted_at ASC
 					LIMIT $1 OFFSET $2
 					`;
 
@@ -801,7 +891,7 @@ router.get(
 					FROM breweries
 					${whereClause}
 					`;
-					
+
 			const [breweriesResult, countResult] = await Promise.all([
 				pool.query(mainQuery, [limit, offset]),
 				pool.query(countQuery),
