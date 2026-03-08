@@ -18,14 +18,14 @@ const router = Router();
 export async function favoriteBeerLookup(id: string) {
 	return await pool.query(
 		"SELECT id, user_id, beer_id, date_created FROM beers_favorites WHERE id = $1",
-		[id]
+		[id],
 	);
 }
 
 export async function favoriteBreweryLookup(id: string) {
 	return await pool.query(
 		"SELECT id, user_id, brewery_id, date_created FROM breweries_favorites WHERE id = $1",
-		[id]
+		[id],
 	);
 }
 
@@ -72,13 +72,13 @@ router.post(
 				return res.status(200).json({ message: "Already favorited" });
 			}
 			const favoriteData = result.rows[0];
-			res.locals.createdFavorite = favoriteData.id
+			res.locals.createdFavorite = favoriteData.id;
 			res.status(201).json(favoriteData);
 		} catch (error) {
 			console.log(error);
 			res.status(500).json({ Error: "Error adding to favorites" });
 		}
-	}
+	},
 );
 
 router.delete(
@@ -118,13 +118,13 @@ router.delete(
 		}
 		try {
 			const result = await pool.query(query, [req.params.id]);
-			res.locals.deletedFavorite = req.params.id
+			res.locals.deletedFavorite = req.params.id;
 			res.status(200).json({ deleted: result.rows[0] });
 		} catch (error) {
 			console.log(error);
 			res.status(500).json({ Error: "Server Error" });
 		}
-	}
+	},
 );
 
 router.get(
@@ -252,7 +252,7 @@ router.get(
 			console.error(error);
 			res.status(500).json({ error: "Failed to retrieve favorites" });
 		}
-	}
+	},
 );
 
 router.get(
@@ -263,7 +263,8 @@ router.get(
 	async (req: Request, res: Response) => {
 		const { table, id } = req.params;
 		const tableName = table + "_favorites";
-		const tableNameSingular = table.replace(/s$/, "") + "_id";
+		const tableNameSingular =
+			table.replace(/ies$/, "y").replace(/s$/, "") + "_id";
 		const userId = req.user?.id;
 
 		const query = `
@@ -296,7 +297,7 @@ router.get(
 			console.log(error);
 			res.status(500).json({ Error: "Server Error" });
 		}
-	}
+	},
 );
 
 export default router;
