@@ -302,7 +302,7 @@ router.get(
 				...beer,
 				reviews: reviewsResult.rows,
 				pagination: {
-					totalItems: totalReviews,
+					total: totalReviews,
 					limit,
 					offset,
 				},
@@ -556,11 +556,12 @@ router.put(
 				beerID,
 			]);
 		}
+		const formatedAbv = Number(abv * 10);
 
 		try {
 			await pool.query(
 				`UPDATE beers SET name = $1, brewery_id = $2, description = $3, style = $4, ibu = $5, abv = $6, color = $7 WHERE id = $8`,
-				[name, brewery_id, description, style, ibu, abv, color, beerID],
+				[name, brewery_id, description, style, ibu, formatedAbv, color, beerID],
 			);
 			res.locals.updatedBeerId = beerID;
 			res.status(200).json({ message: "Beer updated successfully" });
