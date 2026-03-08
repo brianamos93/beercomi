@@ -12,7 +12,6 @@ import validate from "express-zod-safe";
 import {
 	LoginSchema,
 	PasswordChangeSchema,
-	profileImageSchema,
 	RoleInputSchema,
 	SignupSchema,
 } from "../schemas/userSchemas";
@@ -324,7 +323,7 @@ router.post(
 	}
 );
 
-router.get("/user/", express.json(), async (req: Request, res: Response) => {
+router.get("/user", express.json(), async (req: Request, res: Response) => {
 	try {
 		const decodedToken = decodeToken(req);
 		if (!decodedToken.id) {
