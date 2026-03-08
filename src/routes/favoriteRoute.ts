@@ -190,13 +190,13 @@ router.get(
 		FROM 
 		(
 		SELECT 
-		beers_favorites.id, 
-		beers_favorites.beer_id AS target_id, 
-		beers_favorites.date_created, 
-		beers.name, 
-		beers.brewery_id, 
-		breweries.name AS brewery_name, 
-		'beers' AS source_table
+			beers_favorites.id, 
+			beers_favorites.beer_id AS target_id, 
+			beers_favorites.date_created, 
+			beers.name, 
+			beers.brewery_id, 
+			breweries.name AS brewery_name, 
+			'beers' AS source_table
         FROM beers_favorites
 		LEFT JOIN beers ON beers_favorites.beer_id = beers.id
 		LEFT JOIN breweries ON beers.brewery_id = breweries.id
@@ -205,16 +205,16 @@ router.get(
         UNION ALL
 
         SELECT 
-		breweries_favorites.id, 
-		breweries_favorites.brewery_id AS target_id, 
-		breweries_favorites.date_created, 
-		breweries.name,
-		NULL AS brewery_id, 
-		'breweries' AS source_table, 
-		NULL AS brewery
-        FROM breweries_favorites
+			breweries_favorites.id, 
+			breweries_favorites.brewery_id AS target_id, 
+			breweries_favorites.date_created, 
+			breweries.name,
+			NULL AS brewery_id, 
+			NULL AS brewery_name,
+			'breweries' AS source_table
+		FROM breweries_favorites
 		LEFT JOIN breweries on breweries_favorites.brewery_id = breweries.id
-        WHERE user_id = $1
+		WHERE user_id = $1
 		
 		) AS combined
         
