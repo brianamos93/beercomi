@@ -48,7 +48,7 @@ router.get(
 			res.json({
 				data: mainResult.rows,
 				pagination: {
-					totalItems: totalEntries,
+					total: totalEntries,
 					limit,
 					offset,
 				},
