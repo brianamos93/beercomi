@@ -167,7 +167,7 @@ router.post(
 				}
 			}
 			await sharp(req.file.buffer)
-				.resize(200, 200)
+				.resize(800, 600, { fit: "cover" })
 				.toFile(uploadFilePathAndFile);
 			const relativeUploadFilePathAndFile = "/uploads/users/" + newFileName;
 			const userId = user.rows[0].id;

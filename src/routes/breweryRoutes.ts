@@ -316,7 +316,7 @@ router.post(
 			const uploadFilePathAndFile = path.join(uploadPath, newFileName);
 			await sharp(req.file.buffer)
 				.webp({ lossless: true })
-				.resize(200, 200, { fit: "contain" })
+				.resize(800, 600, { fit: "cover" })
 				.toFile(uploadFilePathAndFile);
 			relativeUploadFilePathAndFile = `/uploads/${newFileName}`;
 		}
@@ -412,7 +412,7 @@ router.put(
 			const uploadFilePathAndFile = path.join(uploadPath, newFileName);
 			await sharp(req.file.buffer)
 				.webp({ lossless: true })
-				.resize(200, 200, { fit: "contain" })
+				.resize(800, 600, { fit: "cover" })
 				.toFile(uploadFilePathAndFile);
 			relativeUploadFilePathAndFile = `/uploads/${newFileName}`;
 		}
