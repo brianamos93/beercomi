@@ -150,26 +150,50 @@ router.get(
 			const limit = req.query.limit || 10;
 			const offset = req.query.offset || 0;
 			const mainQuery = `
-			SELECT 
-			beers.id, 
-			beers.name, 
-			beers.brewery_id, 
-			breweries.name AS brewery_name, 
-			beers.description, beers.style, 
-			beers.ibu, 
-			beers.abv, 
-			beers.color, 
-			beers.cover_image, 
-			beers.date_updated, 
-			beers.author_id,
-			beer_authors.display_name AS author_name,
-			beer_authors.id AS author_id, -- beer author's user id
-			beers.date_created FROM beers LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
- 			LEFT JOIN breweries ON beers.brewery_id = breweries.id 
-			WHERE beers.deleted_at IS NULL
-			ORDER BY beers.date_updated DESC
-			LIMIT $1 OFFSET $2
-		`;
+				SELECT 
+					beers.id, 
+					beers.name, 
+					beers.brewery_id, 
+					breweries.name AS brewery_name, 
+					beers.description, 
+					beers.style, 
+					beers.ibu, 
+					beers.abv, 
+					beers.color, 
+					beers.cover_image, 
+					beers.date_updated, 
+					beers.author_id,
+					beer_authors.display_name AS author_name,
+					beer_authors.id AS author_id,
+					beers.date_created,
+
+					COALESCE(ratings.avg_rating, 0) AS avg_rating,
+					COALESCE(ratings.review_count, 0) AS review_count
+
+				FROM beers
+
+				LEFT JOIN users AS beer_authors 
+					ON beers.author_id = beer_authors.id
+
+				LEFT JOIN breweries 
+					ON beers.brewery_id = breweries.id 
+
+				LEFT JOIN (
+					SELECT 
+						beer_id,
+						ROUND(AVG(rating), 2) AS avg_rating,
+						COUNT(*) AS review_count
+					FROM beer_reviews
+					GROUP BY beer_id
+				) ratings 
+					ON beers.id = ratings.beer_id
+
+				WHERE beers.deleted_at IS NULL
+
+				ORDER BY beers.date_updated DESC
+
+				LIMIT $1 OFFSET $2
+				`;
 			const countQuery = `SELECT COUNT(*) FROM beers WHERE deleted_at IS NULL`;
 
 			const [beersResult, countResult] = await Promise.all([
@@ -227,28 +251,50 @@ router.get(
 
 		try {
 			const beerResult = await pool.query(
-				`SELECT
-          beers.id,
-          beers.name,
-          beers.brewery_id,
-          breweries.name AS brewery_name,
-          beers.description,
-          beers.style,
-          beers.ibu,
-          beers.abv,
-          beers.color,
-          beers.author_id,
-          beer_authors.display_name AS author_name,
-          beer_authors.id AS author_id,
-          beers.date_updated,
-          beers.date_created,
-          beers.cover_image
-        FROM beers
-        LEFT JOIN breweries ON beers.brewery_id = breweries.id
-        LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
-        WHERE beers.id = $1 AND beers.deleted_at IS NULL`,
-				[beerId],
-			);
+			`SELECT
+				beers.id,
+				beers.name,
+				beers.brewery_id,
+				breweries.name AS brewery_name,
+				beers.description,
+				beers.style,
+				beers.ibu,
+				beers.abv,
+				beers.color,
+				beers.author_id,
+				beer_authors.display_name AS author_name,
+				beer_authors.id AS author_id,
+				beers.date_updated,
+				beers.date_created,
+				beers.cover_image,
+
+			COALESCE(ratings.avg_rating, 0) AS avg_rating,
+			COALESCE(ratings.review_count, 0) AS review_count
+
+			FROM beers
+
+			LEFT JOIN breweries 
+			ON beers.brewery_id = breweries.id
+
+			LEFT JOIN users AS beer_authors 
+			ON beers.author_id = beer_authors.id
+
+			LEFT JOIN (
+				SELECT
+					beer_id,
+					ROUND(AVG(rating), 2) AS avg_rating,
+					COUNT(*) AS review_count
+				FROM beer_reviews
+				WHERE deleted_at IS NULL
+				GROUP BY beer_id
+				) ratings
+				ON beers.id = ratings.beer_id
+
+			WHERE beers.id = $1
+			AND beers.deleted_at IS NULL
+				`,
+				[beerId]
+				);
 
 			if (beerResult.rows.length === 0) {
 				return res.status(404).json({ error: "Beer not found" });
@@ -357,7 +403,7 @@ router.post(
 			const uploadFilePathAndFile = path.join(uploadPath, newFileName);
 			await sharp(req.file.buffer)
 				.webp({ lossless: true })
-				.resize(200, 200, { fit: "contain" })
+				.resize(800, 600, { fit: "cover" })
 				.toFile(uploadFilePathAndFile);
 			relativeUploadFilePathAndFile = `/uploads/${newFileName}`;
 		}
@@ -548,7 +594,7 @@ router.put(
 			const uploadFilePathAndFile = path.join(uploadPath, newFileName);
 			await sharp(req.file.buffer)
 				.webp({ lossless: true })
-				.resize(200, 200, { fit: "contain" })
+				.resize(800, 600, { fit: "cover" })
 				.toFile(uploadFilePathAndFile);
 			const relativeUploadFilePathAndFile = `/uploads/${newFileName}`;
 			await pool.query(`UPDATE beers SET cover_image = $1 WHERE id = $2`, [
