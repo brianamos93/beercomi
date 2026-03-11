@@ -8,7 +8,12 @@ import { FileFilterCallback } from "multer";
 import sharp from "sharp";
 import { BeerSchemaBase, EditBeerSchema } from "../schemas/beerSchemas";
 import { CreateReviewSchema, EditReviewSchema } from "../schemas/reviewSchemas";
-import { deletedAtQuerySchema, DeletedAtQueryType, querySchema, QueryType } from "../schemas/querySchema";
+import {
+	deletedAtQuerySchema,
+	DeletedAtQueryType,
+	querySchema,
+	QueryType,
+} from "../schemas/querySchema";
 const { authenticationHandler } = require("../utils/middleware");
 import express from "express";
 import validate from "express-zod-safe";
@@ -87,15 +92,17 @@ async function beerUser(beerID: string) {
 }
 
 async function reviewLookup(reviewID: string) {
-	return await pool.query("SELECT id FROM beer_reviews WHERE id = $1 AND deleted_at IS NULL", [
-		reviewID,
-	]);
+	return await pool.query(
+		"SELECT id FROM beer_reviews WHERE id = $1 AND deleted_at IS NULL",
+		[reviewID],
+	);
 }
 
 async function softDeletedReviewLookup(reviewID: string) {
-	return await pool.query("SELECT id FROM beer_reviews WHERE id = $1 AND deleted_at IS NOT NULL", [
-		reviewID,
-	]);
+	return await pool.query(
+		"SELECT id FROM beer_reviews WHERE id = $1 AND deleted_at IS NOT NULL",
+		[reviewID],
+	);
 }
 
 async function reviewUser(reviewID: string) {
@@ -251,7 +258,7 @@ router.get(
 
 		try {
 			const beerResult = await pool.query(
-			`SELECT
+				`SELECT
 				beers.id,
 				beers.name,
 				beers.brewery_id,
@@ -293,8 +300,8 @@ router.get(
 			WHERE beers.id = $1
 			AND beers.deleted_at IS NULL
 				`,
-				[beerId]
-				);
+				[beerId],
+			);
 
 			if (beerResult.rows.length === 0) {
 				return res.status(404).json({ error: "Beer not found" });
@@ -454,7 +461,9 @@ router.delete(
 		const beerID = req.params.id;
 		const beercheck = await beerlookup(beerID);
 		if (beercheck.rowCount == 0) {
-			return res.status(401).json({ error: "beer does not exist or is already soft deleted" });
+			return res
+				.status(401)
+				.json({ error: "beer does not exist or is already soft deleted" });
 		}
 		const decodedToken = decodeToken(req);
 		if (!decodedToken.id) {
@@ -678,6 +687,67 @@ router.get(
 		}
 	},
 );
+//get all reviews
+router.get(
+	"/review/",
+	express.json(),
+	validate({ query: querySchema }),
+	async (req: Request<any, any, any, QueryType>, res: Response) => {
+		const limit = Number(req.query.limit) || 10;
+		const offset = Number(req.query.offset) || 0;
+
+		try {
+			const result = await pool.query(
+				`SELECT
+            beer_reviews.id,
+            beer_reviews.author_id,
+            beer_reviews.beer_id,
+            beer_reviews.review,
+            beer_reviews.rating,
+            beer_reviews.date_created,
+            beer_reviews.date_updated,
+            users.display_name AS author_name,
+            beers.name AS beer_name,
+            breweries.name AS brewery_name,
+            COALESCE(
+                json_agg(
+                    json_build_object(
+                        'id', review_photos.id,
+                        'photo_url', review_photos.photo_url,
+                        'date_updated', review_photos.date_updated,
+                        'position', review_photos.position
+                    )
+                ) FILTER (WHERE review_photos.id IS NOT NULL AND review_photos.deleted_at IS NULL), '[]'
+            ) AS photos
+        FROM beer_reviews
+        LEFT JOIN users ON beer_reviews.author_id = users.id
+        LEFT JOIN beers ON beer_reviews.beer_id = beers.id
+        LEFT JOIN breweries ON beers.brewery_id = breweries.id
+        LEFT JOIN review_photos ON beer_reviews.id = review_photos.review_id
+        WHERE beers.deleted_at IS NULL AND beer_reviews.deleted_at IS NULL
+        GROUP BY
+            beer_reviews.id,
+            users.display_name,
+            beers.name,
+            breweries.name
+        ORDER BY beer_reviews.date_created DESC
+        LIMIT $1 OFFSET $2
+        `,
+				[limit, offset],
+			);
+
+			if (result.rowCount === 0) {
+				return res.status(404).json({ error: "Review not found" });
+			}
+
+			const reviews: Review[] = result.rows;
+			res.json(reviews);
+		} catch (error) {
+			console.error("Error fetching reviews", error);
+			res.status(500).json({ error: "Error fetching reviews" });
+		}
+	},
+);
 
 //create new review
 router.post(
@@ -757,154 +827,149 @@ router.post(
 );
 //update review
 router.put(
-  "/review/:id",
-  authenticationHandler,
-  upload.array("photos", 4),
-  fileValidator,
-  (req, res, next) => {
-    console.log("req.body:", req.body);
-    console.log("deleted:", req.body.deleted);
-    console.log("typeof deleted:", typeof req.body.deleted);
-    next();
-  },
-  validate({params: idParamSchema, body: EditReviewSchema }),
-  activityLogger({
-    action: "review_edited",
-    entityType: "reviews",
-    getEntityId: (_req, res) => res.locals.editedReview,
-  }),
-  async (req: Request, res: Response) => {
-    const reviewID = req.params.id;
-    const client = await pool.connect();
+	"/review/:id",
+	authenticationHandler,
+	upload.array("photos", 4),
+	fileValidator,
+	(req, res, next) => {
+		console.log("req.body:", req.body);
+		console.log("deleted:", req.body.deleted);
+		console.log("typeof deleted:", typeof req.body.deleted);
+		next();
+	},
+	validate({ params: idParamSchema, body: EditReviewSchema }),
+	activityLogger({
+		action: "review_edited",
+		entityType: "reviews",
+		getEntityId: (_req, res) => res.locals.editedReview,
+	}),
+	async (req: Request, res: Response) => {
+		const reviewID = req.params.id;
+		const client = await pool.connect();
 
-    try {
-      if (!req.user?.id) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+		try {
+			if (!req.user?.id) {
+				return res.status(401).json({ error: "Unauthorized" });
+			}
 
-      const { rating, review, beer_id, deleted } = req.body;
+			const { rating, review, beer_id, deleted } = req.body;
 
-      if (!rating || !review || !beer_id) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
+			if (!rating || !review || !beer_id) {
+				return res.status(400).json({ error: "Missing required fields" });
+			}
 
-      const numberRating = Number(rating);
-      const trimmedBeerId = beer_id.trim();
-      const userId = req.user.id;
+			const numberRating = Number(rating);
+			const trimmedBeerId = beer_id.trim();
+			const userId = req.user.id;
 
-      const reviewCheck = await reviewLookup(reviewID);
+			const reviewCheck = await reviewLookup(reviewID);
 
-      if (reviewCheck.rowCount === 0) {
-        return res.status(404).json({ error: "Review does not exist" });
-      }
+			if (reviewCheck.rowCount === 0) {
+				return res.status(404).json({ error: "Review does not exist" });
+			}
 
-      const reviewUserCheck = await reviewUser(reviewID);
+			const reviewUserCheck = await reviewUser(reviewID);
 
-      if (userId !== reviewUserCheck.rows[0].author_id) {
-        return res.status(403).json({ error: "User not authorized" });
-      }
+			if (userId !== reviewUserCheck.rows[0].author_id) {
+				return res.status(403).json({ error: "User not authorized" });
+			}
 
-      const files = req.files as Express.Multer.File[];
+			const files = req.files as Express.Multer.File[];
 
-      await client.query("BEGIN");
+			await client.query("BEGIN");
 
-      // Update review
-      await client.query(
-        `UPDATE beer_reviews
+			// Update review
+			await client.query(
+				`UPDATE beer_reviews
          SET rating = $1, review = $2, beer_id = $3
          WHERE id = $4`,
-        [numberRating, review, trimmedBeerId, reviewID]
-      );
+				[numberRating, review, trimmedBeerId, reviewID],
+			);
 
-      // Delete requested photos
-      for (const fileId of deleted) {
-        const photoCheck = await photoLookup(fileId);
+			// Delete requested photos
+			for (const fileId of deleted) {
+				const photoCheck = await photoLookup(fileId);
 
-        if (photoCheck.rowCount === 0) continue;
+				if (photoCheck.rowCount === 0) continue;
 
-        if (photoCheck.rows[0].user_id !== userId) {
-          throw new Error("Unauthorized photo deletion");
-        }
+				if (photoCheck.rows[0].user_id !== userId) {
+					throw new Error("Unauthorized photo deletion");
+				}
 
-        const filePath = path.join(
-          __dirname,
-          "..",
-          photoCheck.rows[0].photo_url
-        );
+				const filePath = path.join(
+					__dirname,
+					"..",
+					photoCheck.rows[0].photo_url,
+				);
 
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
+				if (fs.existsSync(filePath)) {
+					fs.unlinkSync(filePath);
+				}
 
-        await client.query(
-          "DELETE FROM review_photos WHERE id = $1",
-          [fileId]
-        );
-      }
+				await client.query("DELETE FROM review_photos WHERE id = $1", [fileId]);
+			}
 
-      // Handle new uploads
-      if (files && files.length > 0) {
-        const reviewPhotos = await reviewPhotoLookup(reviewID);
-		const currentCount = reviewPhotos.rowCount ?? 0;
-        const existingPositions = reviewPhotos.rows.map((p) => p.position);
-        const usedPositions = new Set(existingPositions);
+			// Handle new uploads
+			if (files && files.length > 0) {
+				const reviewPhotos = await reviewPhotoLookup(reviewID);
+				const currentCount = reviewPhotos.rowCount ?? 0;
+				const existingPositions = reviewPhotos.rows.map((p) => p.position);
+				const usedPositions = new Set(existingPositions);
 
-        const requestPhotosCount = files.length;
+				const requestPhotosCount = files.length;
 
-        if (currentCount + requestPhotosCount > 4) {
-          return res.status(400).json({ error: "Photo limit exceeded" });
-        }
+				if (currentCount + requestPhotosCount > 4) {
+					return res.status(400).json({ error: "Photo limit exceeded" });
+				}
 
-        const uploadPath = path.join(__dirname, "..", "uploads");
+				const uploadPath = path.join(__dirname, "..", "uploads");
 
-        if (!fs.existsSync(uploadPath)) {
-          fs.mkdirSync(uploadPath, { recursive: true });
-        }
+				if (!fs.existsSync(uploadPath)) {
+					fs.mkdirSync(uploadPath, { recursive: true });
+				}
 
-        for (const file of files) {
-          let position = 0;
+				for (const file of files) {
+					let position = 0;
 
-          while (usedPositions.has(position)) {
-            position++;
-          }
+					while (usedPositions.has(position)) {
+						position++;
+					}
 
-          usedPositions.add(position);
+					usedPositions.add(position);
 
-          const newFileName = `${reviewID}-${position}.webp`;
-          const filePath = path.join(uploadPath, newFileName);
+					const newFileName = `${reviewID}-${position}.webp`;
+					const filePath = path.join(uploadPath, newFileName);
 
-          await sharp(file.buffer)
-            .webp({ lossless: true })
-            .toFile(filePath);
+					await sharp(file.buffer).webp({ lossless: true }).toFile(filePath);
 
-          const relativePath = `/uploads/${newFileName}`;
+					const relativePath = `/uploads/${newFileName}`;
 
-          await client.query(
-            `INSERT INTO review_photos (review_id, photo_url, position, user_id)
+					await client.query(
+						`INSERT INTO review_photos (review_id, photo_url, position, user_id)
              VALUES ($1, $2, $3, $4)`,
-            [reviewID, relativePath, position, userId]
-          );
-        }
-      }
+						[reviewID, relativePath, position, userId],
+					);
+				}
+			}
 
-      await client.query("COMMIT");
+			await client.query("COMMIT");
 
-      res.locals.editedReview = reviewID;
+			res.locals.editedReview = reviewID;
 
-      return res.status(200).json({
-        message: "Review updated successfully",
-      });
-    } catch (error) {
-      await client.query("ROLLBACK");
-      console.error(error);
+			return res.status(200).json({
+				message: "Review updated successfully",
+			});
+		} catch (error) {
+			await client.query("ROLLBACK");
+			console.error(error);
 
-      return res.status(500).json({
-        error: "Error updating review",
-      });
-    } finally {
-      client.release();
-    }
-  }
+			return res.status(500).json({
+				error: "Error updating review",
+			});
+		} finally {
+			client.release();
+		}
+	},
 );
 
 //delete review photo
@@ -983,7 +1048,7 @@ router.delete(
 				[reviewID],
 			);
 			res.locals.deletedReview = reviewID;
-			res.status(200).json({message: "Review soft deleted"});
+			res.status(200).json({ message: "Review soft deleted" });
 		} catch (error) {
 			console.error("Error deleting review", error);
 			res.status(500).json({ error: "Error deleting review" });
@@ -1005,7 +1070,9 @@ router.put(
 		const reviewID = req.params.id;
 		const reviewcheck = await softDeletedReviewLookup(reviewID);
 		if (reviewcheck.rowCount == 0) {
-			return res.status(401).json({ error: "review does not exist or is not soft deleted" });
+			return res
+				.status(401)
+				.json({ error: "review does not exist or is not soft deleted" });
 		}
 		const decodedToken = decodeToken(req);
 		if (!decodedToken.id) {
@@ -1028,7 +1095,7 @@ router.put(
 				[reviewID],
 			);
 			res.locals.deletedReview = reviewID;
-			res.status(200).json({message: "Review soft delete undone"});
+			res.status(200).json({ message: "Review soft delete undone" });
 		} catch (error) {
 			console.error("Error deleting review", error);
 			res.status(500).json({ error: "Error deleting review" });
