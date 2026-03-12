@@ -537,6 +537,11 @@ router.put(
 	authenticationHandler,
 	upload.single("cover_image"),
 	fileValidator,
+	(req, res, next) => {
+		console.log("req.body:", req.body);
+		console.log("File:", req.file);
+		next();
+	},
 	validate({ body: EditBeerSchema, params: idParamSchema }),
 	activityLogger({
 		action: "beer_edited",
@@ -557,6 +562,7 @@ router.put(
 		} = req.body;
 		const beercheck = await beerlookup(beerID);
 		const userId = req?.user?.id;
+		console.log(deleteCoverImage, typeof deleteCoverImage);
 
 		if (beercheck.rowCount == 0) {
 			return res.status(404).json({ error: "beer does not exist" });
@@ -576,7 +582,7 @@ router.put(
 
 		const currentBeer = beercheck.rows[0];
 
-		if (deleteCoverImage === true && currentBeer.cover_image) {
+		if (deleteCoverImage === 'true' && currentBeer.cover_image) {
 			const currentCoverImage = currentBeer.cover_image;
 			const filePath = path.join(__dirname, "..", currentCoverImage);
 			if (fs.existsSync(filePath)) {

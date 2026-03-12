@@ -10,8 +10,10 @@ export const BeerSchemaBase = z.object({
 	description: z.string().min(1, "Description is required."),
 });
 
+const allowedStringValues = ['true', 'false'] as const;
+
 export const EditBeerSchema = BeerSchemaBase.extend({
-	deleteCoverImage: z.coerce.boolean(),
+	deleteCoverImage: z.enum(allowedStringValues)
 });
 
 export type EditBeerInput = z.infer<typeof EditBeerSchema>;
