@@ -7,8 +7,7 @@ const bcrypt = require("bcrypt");
 
 const client = new Client({
   connectionString:
-    process.env.DB_URL ||
-    "postgresql://backend_user:npg_Uw3dZhDRsxm9@ep-lively-meadow-a1liwp2s-pooler.ap-southeast-1.aws.neon.tech/beercomi?sslmode=require",
+    process.env.DB_URL
 });
 
 /* ---------------- CONFIG ---------------- */
