@@ -19,11 +19,10 @@ import { errorHandler } from "./utils/middleware/errorHandler";
 import { apiLogger } from "./utils/middleware/apiLogger";
 
 app.use(apiLogger);
-app.use(errorHandler);
 
 app.use(cors({
-	origin: "https://beercomi-front.vercel.app:3000",
-	credentials: true,
+  origin: "https://beercomi-front.vercel.app",
+  credentials: true,
 }));
 app.use(express.static('dist'))
 app.use("/uploads", express.static(path.join(__dirname, "uploads")))
@@ -39,6 +38,7 @@ app.use("/", userRoutes);
 
 
 app.use(middleware.unknownEndpoint);
+app.use(errorHandler);
 app.use(middleware.errorHandler);
 
 module.exports = app
