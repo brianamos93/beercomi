@@ -108,10 +108,15 @@ async function main() {
     const userValues = [];
     const userPlaceholders = [];
 
-    const adminPassword = await bcrypt.hash("admin12345", 10);
+    const adminPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10);
 
     userPlaceholders.push("($1,$2,$3,$4)");
     userValues.push("admin@admin.com", adminPassword, "admin", "admin");
+
+    const regularUser = await bcrypt.hash(process.env.REGULAR_PASSWORD, 10);
+
+    userPlaceholders.push("($1,$2,$3,$4)");
+    userValues.push("regular@regular.com", regularUser, "basic", "basic");
 
     let param = 5;
 
