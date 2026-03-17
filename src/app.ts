@@ -22,7 +22,7 @@ app.use(apiLogger);
 app.use(errorHandler);
 
 app.use(cors({
-	origin: "http://localhost:3000",
+	origin: "https://beercomi-front.vercel.app:3000",
 	credentials: true,
 }));
 app.use(express.static('dist'))
