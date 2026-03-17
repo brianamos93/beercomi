@@ -51,7 +51,7 @@
   "scripts": {
     "dev": "nodemon -L --watch src --ext js,ts,json --exec ts-node --files ./src/index.ts",
     "build": "tsc",
-    "start": "node ./back/index.js",
+    "start": "node ./src/index.js",
     "check-types": "tsc --noEmit",
     "lint": "run-p -l -c --aggregate-output lint:*",
     "lint:eslint": "eslint src/**/*.ts",
