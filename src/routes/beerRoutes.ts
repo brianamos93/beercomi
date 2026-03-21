@@ -246,125 +246,128 @@ router.get("/list", express.json(), async (req: Request, res: Response) => {
 });
 
 router.get(
-	"/:id",
-	express.json(),
-	validate({ params: idParamSchema, query: querySchema }),
-	async (req: Request<any, any, any, QueryType>, res: Response) => {
-		const beerId = req.params.id;
+    "/:id/reviews",
+    express.json(),
+    validate({ params: idParamSchema, query: querySchema }),
+    async (req: Request<any, any, any, QueryType>, res: Response) => {
+        const beerId = req.params.id;
+        const limit = Number(req.query.limit) || 10;
+        const offset = Number(req.query.offset) || 0;
+        try {
+            const reviewsResult = await pool.query(
+                `SELECT
+                beer_reviews.id,
+                beer_reviews.rating,
+                beer_reviews.review,
+                beer_reviews.author_id,
+                review_authors.display_name AS author_name,
+                beer_reviews.date_updated,
+                beer_reviews.date_created,
+                COALESCE(
+                    (
+                        SELECT json_agg(
+                            json_build_object(
+                                'id', review_photos.id,
+                                'photo_url', review_photos.photo_url,
+                                'date_updated', review_photos.date_updated,
+                                'position', review_photos.position
+                            )
+                            ORDER BY review_photos.date_created DESC
+                        )
+                        FROM review_photos
+                        WHERE review_photos.review_id = beer_reviews.id AND review_photos.deleted_at IS NULL
+                    ),
+                    '[]'
+                ) AS photos
+                FROM beer_reviews
+                LEFT JOIN users AS review_authors 
+                ON beer_reviews.author_id = review_authors.id
+                WHERE beer_reviews.beer_id = $1 AND beer_reviews.deleted_at IS NULL
+                ORDER BY beer_reviews.date_created DESC
+                LIMIT $2 OFFSET $3`,
+                [beerId, limit, offset],
+            );
 
-		// Pagination input
-		const limit = Number(req.query.limit) || 10;
-		const offset = Number(req.query.offset) || 0;
+            const totalResult = await pool.query(
+                `SELECT COUNT(*) FROM beer_reviews WHERE beer_id = $1 AND deleted_at IS NULL`,
+                [beerId],
+            );
+            const totalReviews = Number(totalResult.rows[0].count);
 
-		try {
-			const beerResult = await pool.query(
-				`SELECT
-				beers.id,
-				beers.name,
-				beers.brewery_id,
-				breweries.name AS brewery_name,
-				beers.description,
-				beers.style,
-				beers.ibu,
-				beers.abv,
-				beers.color,
-				beers.author_id,
-				beer_authors.display_name AS author_name,
-				beer_authors.id AS author_id,
-				beers.date_updated,
-				beers.date_created,
-				beers.cover_image,
+            res.json({
+                reviews: reviewsResult.rows,
+                pagination: {
+                    total: totalReviews,
+                    limit,
+                    offset,
+                },
+            });
+        } catch (error) {
+            console.error("Error fetching reviews", error);
+            res.status(500).json({ error: "Error fetching reviews" });
+        }
+    },
+);
 
-			COALESCE(ratings.avg_rating, 0) AS avg_rating,
-			COALESCE(ratings.review_count, 0) AS review_count
+router.get(
+    "/:id",
+    express.json(),
+    validate({ params: idParamSchema }),
+    async (req: Request, res: Response) => {
+        const beerId = req.params.id;
+        try {
+            const beerResult = await pool.query(
+                `SELECT
+                beers.id,
+                beers.name,
+                beers.brewery_id,
+                breweries.name AS brewery_name,
+                beers.description,
+                beers.style,
+                beers.ibu,
+                beers.abv,
+                beers.color,
+                beers.author_id,
+                beer_authors.display_name AS author_name,
+                beer_authors.id AS author_id,
+                beers.date_updated,
+                beers.date_created,
+                beers.cover_image,
+                COALESCE(ratings.avg_rating, 0) AS avg_rating,
+                COALESCE(ratings.review_count, 0) AS review_count
+                FROM beers
+                LEFT JOIN breweries 
+                ON beers.brewery_id = breweries.id
+                LEFT JOIN users AS beer_authors 
+                ON beers.author_id = beer_authors.id
+                LEFT JOIN (
+                    SELECT
+                        beer_id,
+                        ROUND(AVG(rating), 2) AS avg_rating,
+                        COUNT(*) AS review_count
+                    FROM beer_reviews
+                    WHERE deleted_at IS NULL
+                    GROUP BY beer_id
+                    ) ratings
+                    ON beers.id = ratings.beer_id
+                WHERE beers.id = $1
+                AND beers.deleted_at IS NULL`,
+                [beerId],
+            );
 
-			FROM beers
+            if (beerResult.rows.length === 0) {
+                return res.status(404).json({ error: "Beer not found" });
+            }
 
-			LEFT JOIN breweries 
-			ON beers.brewery_id = breweries.id
+            const beer = beerResult.rows[0];
+            beer.abv = beer.abv / 10;
 
-			LEFT JOIN users AS beer_authors 
-			ON beers.author_id = beer_authors.id
-
-			LEFT JOIN (
-				SELECT
-					beer_id,
-					ROUND(AVG(rating), 2) AS avg_rating,
-					COUNT(*) AS review_count
-				FROM beer_reviews
-				WHERE deleted_at IS NULL
-				GROUP BY beer_id
-				) ratings
-				ON beers.id = ratings.beer_id
-
-			WHERE beers.id = $1
-			AND beers.deleted_at IS NULL
-				`,
-				[beerId],
-			);
-
-			if (beerResult.rows.length === 0) {
-				return res.status(404).json({ error: "Beer not found" });
-			}
-
-			const beer = beerResult.rows[0];
-			beer.abv = beer.abv / 10;
-
-			const reviewsResult = await pool.query(
-				`SELECT
-          beer_reviews.id,
-          beer_reviews.rating,
-          beer_reviews.review,
-          beer_reviews.author_id,
-          review_authors.display_name AS author_name,
-          beer_reviews.date_updated,
-          beer_reviews.date_created,
-          COALESCE(
-            (
-              SELECT json_agg(
-                json_build_object(
-                  'id', review_photos.id,
-                  'photo_url', review_photos.photo_url,
-                  'date_updated', review_photos.date_updated,
-                  'position', review_photos.position
-                )
-                ORDER BY review_photos.date_created DESC
-              )
-              FROM review_photos
-              WHERE review_photos.review_id = beer_reviews.id AND review_photos.deleted_at IS NULL
-            ),
-            '[]'
-          ) AS photos
-        FROM beer_reviews
-        LEFT JOIN users AS review_authors 
-          ON beer_reviews.author_id = review_authors.id
-        WHERE beer_reviews.beer_id = $1 AND beer_reviews.deleted_at IS NULL
-        ORDER BY beer_reviews.date_created DESC
-        LIMIT $2 OFFSET $3`,
-				[beerId, limit, offset],
-			);
-
-			const totalResult = await pool.query(
-				`SELECT COUNT(*) FROM beer_reviews WHERE beer_id = $1 AND deleted_at IS NULL`,
-				[beerId],
-			);
-
-			const totalReviews = Number(totalResult.rows[0].count);
-
-			res.json({
-				...beer,
-				reviews: reviewsResult.rows,
-				pagination: {
-					total: totalReviews,
-					limit,
-					offset,
-				},
-			});
-		} catch (error) {
-			console.error("Error fetching beer", error);
-			res.status(500).json({ error: "Error fetching beer" });
-		}
-	},
+            res.json(beer);
+        } catch (error) {
+            console.error("Error fetching beer", error);
+            res.status(500).json({ error: "Error fetching beer" });
+        }
+    },
 );
 
 router.post(
