@@ -253,6 +253,13 @@ router.get(
         const beerId = req.params.id;
         const limit = Number(req.query.limit) || 10;
         const offset = Number(req.query.offset) || 0;
+
+		const beercheck = await beerlookup(beerId);
+		if (beercheck.rowCount == 0) {
+			return res
+				.status(404)
+				.json({ error: "beer does not exist or is already soft deleted" });
+		}
         try {
             const reviewsResult = await pool.query(
                 `SELECT
@@ -465,7 +472,7 @@ router.delete(
 		const beercheck = await beerlookup(beerID);
 		if (beercheck.rowCount == 0) {
 			return res
-				.status(401)
+				.status(404)
 				.json({ error: "beer does not exist or is already soft deleted" });
 		}
 		const decodedToken = decodeToken(req);
