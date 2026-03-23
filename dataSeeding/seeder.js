@@ -40,8 +40,8 @@ const BREWERY_SUFFIXES = [
 ];
 
 const BEER_NAME_PARTS = [
-  "River","Mountain","Fog","Oak","Iron",
-  "Golden","Midnight","Hazy","Old Town","Sunset",
+  "River", "Mountain", "Fog", "Oak", "Iron",
+  "Golden", "Midnight", "Hazy", "Old Town", "Sunset",
 ];
 
 /* ---------------- IMAGE HELPERS ---------------- */
@@ -63,7 +63,7 @@ function reviewPhotoImage() {
 function generateBeerName() {
   const part = faker.helpers.arrayElement(BEER_NAME_PARTS);
   const suffix = faker.helpers.arrayElement([
-    "IPA","Ale","Lager","Stout","Reserve","Special"
+    "IPA", "Ale", "Lager", "Stout", "Reserve", "Special"
   ]);
   return `${part} ${suffix}`;
 }
@@ -107,28 +107,29 @@ async function main() {
 
     const userValues = [];
     const userPlaceholders = [];
-
+    let param = 1;
     const adminPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD, 10);
 
-    userPlaceholders.push("($1,$2,$3,$4)");
+    userPlaceholders.push(`($${param},$${param + 1},$${param + 2},$${param + 3})`);
     userValues.push("admin@admin.com", adminPassword, "admin", "admin");
+    param += 4;
 
     const regularUser = await bcrypt.hash(process.env.REGULAR_PASSWORD, 10);
 
-    userPlaceholders.push("($1,$2,$3,$4)");
+    userPlaceholders.push(`($${param},$${param + 1},$${param + 2},$${param + 3})`);
     userValues.push("regular@regular.com", regularUser, "basic", "basic");
+    param += 4;
 
-    let param = 5;
 
     for (let i = 0; i < NUM_USERS; i++) {
 
       const email = faker.internet.email();
       const password = await bcrypt.hash("password123", 10);
-      const display = faker.internet.username().slice(0,15);
+      const display = faker.internet.username().slice(0, 15);
 
-      userPlaceholders.push(`($${param},$${param+1},$${param+2},'basic')`);
+      userPlaceholders.push(`($${param},$${param + 1},$${param + 2},'basic')`);
 
-      userValues.push(email,password,display);
+      userValues.push(email, password, display);
 
       param += 3;
     }
@@ -146,26 +147,26 @@ async function main() {
 
     console.log("🏭 Creating breweries...");
 
-    const breweryValues=[];
-    const breweryPlaceholders=[];
+    const breweryValues = [];
+    const breweryPlaceholders = [];
 
-    param=1;
+    param = 1;
 
-    for (let i=0;i<NUM_BREWERIES;i++){
+    for (let i = 0; i < NUM_BREWERIES; i++) {
 
       const name =
-        faker.location.city()+" "+
+        faker.location.city() + " " +
         faker.helpers.arrayElement(BREWERY_SUFFIXES);
 
       const location =
-        faker.location.city()+", "+
+        faker.location.city() + ", " +
         faker.location.country();
 
-      const founded = faker.date.past({years:50}).getFullYear();
+      const founded = faker.date.past({ years: 50 }).getFullYear();
       const author = faker.helpers.arrayElement(users);
 
       breweryPlaceholders.push(
-        `($${param},$${param+1},$${param+2},$${param+3},$${param+4})`
+        `($${param},$${param + 1},$${param + 2},$${param + 3},$${param + 4})`
       );
 
       breweryValues.push(
@@ -176,7 +177,7 @@ async function main() {
         breweryCoverImage()
       );
 
-      param+=5;
+      param += 5;
     }
 
     const breweriesRes = await client.query(
@@ -193,34 +194,34 @@ async function main() {
 
     console.log("🍺 Creating beers...");
 
-    const beerValues=[];
-    const beerPlaceholders=[];
+    const beerValues = [];
+    const beerPlaceholders = [];
 
-    param=1;
+    param = 1;
 
-    for (const brewery of breweries){
+    for (const brewery of breweries) {
 
-      for (let i=0;i<BEERS_PER_BREWERY;i++){
+      for (let i = 0; i < BEERS_PER_BREWERY; i++) {
 
-        const style=faker.helpers.arrayElement(BEER_STYLES);
+        const style = faker.helpers.arrayElement(BEER_STYLES);
 
         beerPlaceholders.push(
-          `($${param},$${param+1},$${param+2},$${param+3},$${param+4},$${param+5},$${param+6},$${param+7},$${param+8})`
+          `($${param},$${param + 1},$${param + 2},$${param + 3},$${param + 4},$${param + 5},$${param + 6},$${param + 7},$${param + 8})`
         );
 
         beerValues.push(
           generateBeerName(),
           brewery.id,
-          faker.lorem.sentences({min:1,max:3}),
+          faker.lorem.sentences({ min: 1, max: 3 }),
           style.name,
-          faker.number.int({min:style.ibu[0],max:style.ibu[1]}),
-          randomABV(style.abv[0],style.abv[1]),
+          faker.number.int({ min: style.ibu[0], max: style.ibu[1] }),
+          randomABV(style.abv[0], style.abv[1]),
           style.color,
           faker.helpers.arrayElement(users).id,
           beerCoverImage()
         );
 
-        param+=9;
+        param += 9;
       }
     }
 
@@ -238,29 +239,29 @@ async function main() {
 
     console.log("📝 Creating reviews...");
 
-    const reviewValues=[];
-    const reviewPlaceholders=[];
+    const reviewValues = [];
+    const reviewPlaceholders = [];
 
-    param=1;
+    param = 1;
 
-    for (const user of users){
+    for (const user of users) {
 
-      for (let i=0;i<REVIEWS_PER_USER;i++){
+      for (let i = 0; i < REVIEWS_PER_USER; i++) {
 
-        const beer=faker.helpers.arrayElement(beers);
+        const beer = faker.helpers.arrayElement(beers);
 
         reviewPlaceholders.push(
-          `($${param},$${param+1},$${param+2},$${param+3})`
+          `($${param},$${param + 1},$${param + 2},$${param + 3})`
         );
 
         reviewValues.push(
           user.id,
           beer.id,
-          faker.lorem.sentences({min:1,max:4}),
+          faker.lorem.sentences({ min: 1, max: 4 }),
           weightedRating()
         );
 
-        param+=4;
+        param += 4;
       }
     }
 
@@ -279,33 +280,33 @@ async function main() {
 
     console.log("📸 Creating review photos...");
 
-    const photoValues=[];
-    const photoPlaceholders=[];
+    const photoValues = [];
+    const photoPlaceholders = [];
 
-    param=1;
+    param = 1;
 
-    for (const review of reviews){
+    for (const review of reviews) {
 
-      const photoCount = faker.number.int({min:0,max:3});
+      const photoCount = faker.number.int({ min: 0, max: 3 });
 
-      for (let i=0;i<photoCount;i++){
+      for (let i = 0; i < photoCount; i++) {
 
         photoPlaceholders.push(
-          `($${param},$${param+1},$${param+2},$${param+3})`
+          `($${param},$${param + 1},$${param + 2},$${param + 3})`
         );
 
         photoValues.push(
           review.author_id,
           review.id,
           reviewPhotoImage(),
-          i+1
+          i + 1
         );
 
-        param+=4;
+        param += 4;
       }
     }
 
-    if(photoValues.length>0){
+    if (photoValues.length > 0) {
 
       await client.query(
         `INSERT INTO review_photos
@@ -320,11 +321,11 @@ async function main() {
 
     console.log("✅ Seeding complete!");
 
-  } catch(err){
+  } catch (err) {
 
     await client.query("ROLLBACK");
 
-    console.error("❌ Seeder error:",err);
+    console.error("❌ Seeder error:", err);
 
   }
 
