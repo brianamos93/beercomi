@@ -196,19 +196,79 @@ router.get("/list", express.json(), async (req: Request, res: Response) => {
 	}
 });
 
+// GET /breweries/:id/beers
 router.get(
-	"/:id",
-	express.json(),
-	validate({ params: idParamSchema, query: querySchema }),
-	async (req: Request<Params, unknown, unknown, QueryType>, res: Response) => {
-		const breweryId = req.params.id;
-		const limit = req.query.limit || 10;
-		const offset = req.query.offset || 0;
+    "/:id/beers",
+    express.json(),
+    validate({ params: idParamSchema, query: querySchema }),
+    async (req: Request<Params, unknown, unknown, QueryType>, res: Response) => {
+        const breweryId = req.params.id;
+        const limit = req.query.limit || 10;
+        const offset = req.query.offset || 0;
 
-		try {
-			// -------- 1. Fetch brewery data (without beers)
-			const breweryResult = await pool.query(
-				`SELECT 
+		const brewerycheck = await brewerylookup(breweryId);
+
+		if (brewerycheck.rowCount == 0) {
+			return res.status(404).json({ error: "brewery does not exist" });
+		}
+        try {
+            const beersResult = await pool.query(
+                `SELECT 
+                    beers.id,
+                    beers.name,
+                    beers.style,
+                    beers.ibu,
+                    beers.abv / 10.0 AS abv,
+                    beers.color,
+                    beers.description,
+                    beers.cover_image,
+                    beers.date_created,
+                    beers.date_updated,
+                    beers.author_id,
+                    beer_authors.display_name AS author_name
+                FROM beers
+                LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
+                WHERE beers.brewery_id = $1 AND beers.deleted_at IS NULL
+                ORDER BY beers.date_created DESC
+                LIMIT $2 OFFSET $3`,
+                [breweryId, limit, offset],
+            );
+            const countResult = await pool.query(
+                `SELECT COUNT(*) FROM beers WHERE brewery_id = $1 AND deleted_at IS NULL`,
+                [breweryId],
+            );
+            const totalBeers = Number(countResult.rows[0].count);
+            res.json({
+                beers: beersResult.rows,
+                pagination: {
+                    total: totalBeers,
+                    limit,
+                    offset,
+                },
+            });
+        } catch (error) {
+            console.error("Error fetching beers", error);
+            res.status(500).json({ error: "Error fetching beers" });
+        }
+    },
+);
+
+// GET /breweries/:id
+router.get(
+    "/:id",
+    express.json(),
+    validate({ params: idParamSchema }),
+    async (req: Request<Params>, res: Response) => {
+        const breweryId = req.params.id;
+
+		const brewerycheck = await brewerylookup(breweryId);
+
+		if (brewerycheck.rowCount == 0) {
+			return res.status(404).json({ error: "brewery does not exist" });
+		}
+        try {
+            const breweryResult = await pool.query(
+                `SELECT 
                     breweries.id, 
                     breweries.name, 
                     breweries.location, 
@@ -221,63 +281,18 @@ router.get(
                 FROM breweries
                 LEFT JOIN users AS brewery_authors 
                     ON breweries.author_id = brewery_authors.id
-                WHERE breweries.id = $1 AND breweries.deleted_at IS NULL
-                `,
-				[breweryId],
-			);
-
-			if (breweryResult.rows.length === 0) {
-				return res.status(404).json({ error: "Brewery not found" });
-			}
-
-			const brewery = breweryResult.rows[0];
-
-			// -------- 2. Fetch paginated beers
-			const beersResult = await pool.query(
-				`SELECT 
-					beers.id,
-					beers.name,
-					beers.style,
-					beers.ibu,
-					beers.abv / 10.0 AS abv,
-					beers.color,
-					beers.description,
-					beers.cover_image,
-					beers.date_created,
-					beers.date_updated,
-					beers.author_id,
-					beer_authors.display_name AS author_name
-				FROM beers
-				LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
-				WHERE beers.brewery_id = $1 AND beers.deleted_at IS NULL
-				ORDER BY beers.date_created DESC
-				LIMIT $2 OFFSET $3
-                `,
-				[breweryId, limit, offset],
-			);
-
-			// -------- 3. Count total beers for frontend pagination UI
-			const countResult = await pool.query(
-				`SELECT COUNT(*) FROM beers WHERE brewery_id = $1 AND deleted_at IS NULL`,
-				[breweryId],
-			);
-
-			const totalBeers = Number(countResult.rows[0].count);
-
-			res.json({
-				...brewery,
-				beers: beersResult.rows,
-				pagination: {
-					total: totalBeers,
-					limit,
-					offset,
-				},
-			});
-		} catch (error) {
-			console.error("Error fetching brewery", error);
-			res.status(500).json({ error: "Error fetching brewery" });
-		}
-	},
+                WHERE breweries.id = $1 AND breweries.deleted_at IS NULL`,
+                [breweryId],
+            );
+            if (breweryResult.rows.length === 0) {
+                return res.status(404).json({ error: "Brewery not found" });
+            }
+            res.json(breweryResult.rows[0]);
+        } catch (error) {
+            console.error("Error fetching brewery", error);
+            res.status(500).json({ error: "Error fetching brewery" });
+        }
+    },
 );
 
 router.post(
@@ -360,7 +375,7 @@ router.put(
 		const brewerycheck = await brewerylookup(breweryID);
 
 		if (brewerycheck.rowCount == 0) {
-			return res.status(401).json({ error: "brewery does not exist" });
+			return res.status(404).json({ error: "brewery does not exist" });
 		}
 
 		const decodedToken = decodeToken(req);
@@ -453,7 +468,7 @@ router.delete(
 
 		const brewerycheck = await brewerylookup(breweryID);
 		if (brewerycheck.rowCount === 0) {
-			return res.status(401).json({ error: "brewery does not exist" });
+			return res.status(404).json({ error: "brewery does not exist" });
 		}
 
 		if (!req.user?.id) {
@@ -628,7 +643,7 @@ router.put(
 		const brewerycheck = await softDeletedBreweryLookup(breweryID);
 		if (brewerycheck.rowCount === 0) {
 			return res
-				.status(401)
+				.status(404)
 				.json({ error: "brewery does not exist or is not soft deleted" });
 		}
 
