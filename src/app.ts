@@ -21,7 +21,7 @@ import { apiLogger } from "./utils/middleware/apiLogger";
 app.use(apiLogger);
 
 app.use(cors({
-  origin: "https://beercomi-front.vercel.app",
+  origin: process.env.FRONT_END_URL,
   credentials: true,
 }));
 app.use(express.static('dist'))
