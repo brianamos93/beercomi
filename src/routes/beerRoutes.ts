@@ -322,6 +322,13 @@ router.get(
     validate({ params: idParamSchema }),
     async (req: Request, res: Response) => {
         const beerId = req.params.id;
+
+		const beercheck = await beerlookup(beerId);
+		if (beercheck.rowCount == 0) {
+			return res
+				.status(404)
+				.json({ error: "beer does not exist or is already soft deleted" });
+		}
         try {
             const beerResult = await pool.query(
                 `SELECT
