@@ -38,8 +38,10 @@ export const BrewerySchemaBase = z.object({
 		}),
 });
 
+const allowedStringValues = ['true', 'false'] as const;
+
 export const EditBrewerySchema = BrewerySchemaBase.extend({
-	deleteCoverImage: z.coerce.boolean(),
+	deleteCoverImage: z.enum(allowedStringValues),
 });
 
 export type EditBeerInput = z.infer<typeof EditBrewerySchema>;
