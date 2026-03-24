@@ -24,6 +24,7 @@ app.use(cors({
   origin: process.env.FRONT_END_URL,
   credentials: true,
 }));
+app.set('trust proxy', 1);
 app.use(express.static('dist'))
 app.use("/uploads", express.static(path.join(__dirname, "uploads")))
 app.use(limiter)
