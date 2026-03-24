@@ -27,7 +27,7 @@ export const BrewerySchemaBase = z.object({
 	location: z
 		.string()
 		.trim()
-		.min(5, {
+		.min(1, {
 			message: "Brewery location must be at least 5 characters long.",
 		}),
 	date_of_founding: z
@@ -39,7 +39,7 @@ export const BrewerySchemaBase = z.object({
 });
 
 export const EditBrewerySchema = BrewerySchemaBase.extend({
-	deleteCoverImage: z.boolean(),
+	deleteCoverImage: z.coerce.boolean(),
 });
 
 export type EditBeerInput = z.infer<typeof EditBrewerySchema>;
