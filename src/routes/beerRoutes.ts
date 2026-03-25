@@ -246,13 +246,13 @@ router.get("/list", express.json(), async (req: Request, res: Response) => {
 });
 
 router.get(
-    "/:id/reviews",
-    express.json(),
-    validate({ params: idParamSchema, query: querySchema }),
-    async (req: Request<any, any, any, QueryType>, res: Response) => {
-        const beerId = req.params.id;
-        const limit = Number(req.query.limit) || 10;
-        const offset = Number(req.query.offset) || 0;
+	"/:id/reviews",
+	express.json(),
+	validate({ params: idParamSchema, query: querySchema }),
+	async (req: Request<any, any, any, QueryType>, res: Response) => {
+		const beerId = req.params.id;
+		const limit = Number(req.query.limit) || 10;
+		const offset = Number(req.query.offset) || 0;
 
 		const beercheck = await beerlookup(beerId);
 		if (beercheck.rowCount == 0) {
@@ -260,9 +260,9 @@ router.get(
 				.status(404)
 				.json({ error: "beer does not exist or is already soft deleted" });
 		}
-        try {
-            const reviewsResult = await pool.query(
-                `SELECT
+		try {
+			const reviewsResult = await pool.query(
+				`SELECT
                 beer_reviews.id,
                 beer_reviews.rating,
                 beer_reviews.review,
@@ -292,36 +292,36 @@ router.get(
                 WHERE beer_reviews.beer_id = $1 AND beer_reviews.deleted_at IS NULL
                 ORDER BY beer_reviews.date_created DESC
                 LIMIT $2 OFFSET $3`,
-                [beerId, limit, offset],
-            );
+				[beerId, limit, offset],
+			);
 
-            const totalResult = await pool.query(
-                `SELECT COUNT(*) FROM beer_reviews WHERE beer_id = $1 AND deleted_at IS NULL`,
-                [beerId],
-            );
-            const totalReviews = Number(totalResult.rows[0].count);
+			const totalResult = await pool.query(
+				`SELECT COUNT(*) FROM beer_reviews WHERE beer_id = $1 AND deleted_at IS NULL`,
+				[beerId],
+			);
+			const totalReviews = Number(totalResult.rows[0].count);
 
-            res.json({
-                reviews: reviewsResult.rows,
-                pagination: {
-                    total: totalReviews,
-                    limit,
-                    offset,
-                },
-            });
-        } catch (error) {
-            console.error("Error fetching reviews", error);
-            res.status(500).json({ error: "Error fetching reviews" });
-        }
-    },
+			res.json({
+				reviews: reviewsResult.rows,
+				pagination: {
+					total: totalReviews,
+					limit,
+					offset,
+				},
+			});
+		} catch (error) {
+			console.error("Error fetching reviews", error);
+			res.status(500).json({ error: "Error fetching reviews" });
+		}
+	},
 );
 
 router.get(
-    "/:id",
-    express.json(),
-    validate({ params: idParamSchema }),
-    async (req: Request, res: Response) => {
-        const beerId = req.params.id;
+	"/:id",
+	express.json(),
+	validate({ params: idParamSchema }),
+	async (req: Request, res: Response) => {
+		const beerId = req.params.id;
 
 		const beercheck = await beerlookup(beerId);
 		if (beercheck.rowCount == 0) {
@@ -329,9 +329,9 @@ router.get(
 				.status(404)
 				.json({ error: "beer does not exist or is already soft deleted" });
 		}
-        try {
-            const beerResult = await pool.query(
-                `SELECT
+		try {
+			const beerResult = await pool.query(
+				`SELECT
                 beers.id,
                 beers.name,
                 beers.brewery_id,
@@ -366,22 +366,22 @@ router.get(
                     ON beers.id = ratings.beer_id
                 WHERE beers.id = $1
                 AND beers.deleted_at IS NULL`,
-                [beerId],
-            );
+				[beerId],
+			);
 
-            if (beerResult.rows.length === 0) {
-                return res.status(404).json({ error: "Beer not found" });
-            }
+			if (beerResult.rows.length === 0) {
+				return res.status(404).json({ error: "Beer not found" });
+			}
 
-            const beer = beerResult.rows[0];
-            beer.abv = beer.abv / 10;
+			const beer = beerResult.rows[0];
+			beer.abv = beer.abv / 10;
 
-            res.json(beer);
-        } catch (error) {
-            console.error("Error fetching beer", error);
-            res.status(500).json({ error: "Error fetching beer" });
-        }
-    },
+			res.json(beer);
+		} catch (error) {
+			console.error("Error fetching beer", error);
+			res.status(500).json({ error: "Error fetching beer" });
+		}
+	},
 );
 
 router.post(
@@ -599,7 +599,7 @@ router.put(
 
 		const currentBeer = beercheck.rows[0];
 
-		if (deleteCoverImage === 'true' && currentBeer.cover_image) {
+		if (deleteCoverImage === "true" && currentBeer.cover_image) {
 			const currentCoverImage = currentBeer.cover_image;
 			const filePath = path.join(__dirname, "..", currentCoverImage);
 			if (fs.existsSync(filePath)) {
@@ -771,6 +771,34 @@ router.get(
 		}
 	},
 );
+
+router.get("/:id/reviews/mine",
+    authenticationHandler,
+    validate({params: idParamSchema}),
+    async(req: Request, res: Response) => {
+        const beerId = req.params.id
+        const userId = req.user?.id
+
+        if (!userId) return res.status(401).json({ error: "Unauthorized" })
+
+        try {
+            const result = await pool.query(`
+                SELECT id, author_id, beer_id, review, rating, date_created, date_updated FROM beer_reviews
+                WHERE user_id = $1
+                AND beer_id = $2
+            `, [userId, beerId])
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ message: "Review not found" })
+            }
+
+            return res.status(200).json(result.rows[0])
+        } catch (error) {
+            console.log(error)
+            return res.status(500).json({ error: "Server error" })
+        }
+    }
+)
 
 //create new review
 router.post(
