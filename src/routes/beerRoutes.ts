@@ -783,8 +783,8 @@ router.get("/:id/reviews/mine",
 
         try {
             const result = await pool.query(`
-                SELECT id, author_id, beer_id, review, rating, date_created, date_updated FROM beer_reviews
-                WHERE user_id = $1
+                SELECT br.id, br.author_id, br.beer_id, br.review, br.rating, br.date_created, br.date_updated FROM beer_reviews br
+                WHERE author_id = $1
                 AND beer_id = $2
             `, [userId, beerId])
 
