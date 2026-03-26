@@ -866,7 +866,7 @@ router.post(
 
 			await client.query("COMMIT");
 			res.locals.createdReview = reviewId;
-			res.status(201).json({ message: "Review Created", reviewId });
+			res.status(201).json(reviewResult.rows[0]);
 		} catch (error) {
 			await client.query("ROLLBACK");
 			console.error(error);
