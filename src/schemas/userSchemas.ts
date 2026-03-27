@@ -38,3 +38,5 @@ export const profileImageSchema = z.object({
 export const PasswordChangeSchema = LoginSchema.omit({
 	email: true
 })
+
+export type SignupType = z.infer<typeof SignupSchema>;
