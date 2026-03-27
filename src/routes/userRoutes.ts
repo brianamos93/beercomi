@@ -34,12 +34,16 @@ const router = Router();
 export async function userIdGet(userId: string) {
 	return await pool.query("SELECT id, role FROM users WHERE id = $1", [userId]);
 }
-
+router.get(
+	"/user/:id/recentactivity",
+	validate({ params: idParamSchema }),
+	UserController.getRecentActivity,
+);
 router.post(
 	"/login",
 	express.json(),
 	validate({ body: LoginSchema }),
-	UserController.login
+	UserController.login,
 );
 
 router.post(
@@ -47,31 +51,35 @@ router.post(
 	authenticationHandler,
 	upload.single("image"),
 	fileValidator,
-	UserController.uploadAvatar
+	UserController.uploadAvatar,
 );
 
 router.delete(
 	"/profile/img",
 	authenticationHandler,
 	express.json(),
-	UserController.deleteAvatar
+	UserController.deleteAvatar,
 );
-
 
 router.post(
 	"/signup",
 	express.json(),
 	validate({ body: SignupSchema }),
-	UserController.signup
+	UserController.signup,
 );
 
-router.get("/user", express.json(), UserController.getLoggedInUser);
+router.get(
+	"/user",
+	authenticationHandler,
+	express.json(),
+	UserController.getLoggedInUser,
+);
 
 router.get(
 	"/user/:id",
 	express.json(),
 	validate({ params: idParamSchema }),
-	UserController.getUser
+	UserController.getUser,
 );
 
 router.delete(
@@ -79,7 +87,7 @@ router.delete(
 	authenticationHandler,
 	express.json(),
 	validate({ params: idParamSchema }),
-	UserController.deleteUser
+	UserController.deleteUser,
 );
 
 router.put(
@@ -87,20 +95,14 @@ router.put(
 	authenticationHandler,
 	express.json(),
 	validate({ params: idParamSchema, body: PasswordChangeSchema }),
-	UserController.changePassword
+	UserController.changePassword,
 );
 
 router.put(
 	"/user/:id/role",
 	express.json(),
 	validate({ params: idParamSchema, body: RoleInputSchema }),
-	UserController.updateRole
-);
-
-router.get(
-	"/user/:id/recentactivity",
-	validate({ params: idParamSchema }),
-	UserController.getRecentActivity,
+	UserController.updateRole,
 );
 
 export default router;
