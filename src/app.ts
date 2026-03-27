@@ -4,7 +4,7 @@ const app = express();
 require('express-async-errors')
 const cors = require('cors');
 
-const AllowedOrigins = [process.env.FRONT_END_URL, process.env.FRONT_END_URL2, process.env.FRONT_END_URL3]
+const AllowedOrigins = [process.env.FRONT_END_URL, process.env.FRONT_END_URL2, process.env.FRONT_END_URL]
 
 import beerRoutes from "./routes/beerRoutes"
 import userRoutes from "./routes/userRoutes";
