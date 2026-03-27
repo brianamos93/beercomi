@@ -1,4 +1,5 @@
 import { Router, Request } from "express";
+import pool from "../utils/config";
 
 import multer from "multer";
 import { FileFilterCallback } from "multer";
@@ -30,7 +31,9 @@ const upload = multer({ storage: multer.memoryStorage(), fileFilter });
 
 const router = Router();
 
-
+export async function userIdGet(userId: string) {
+	return await pool.query("SELECT id, role FROM users WHERE id = $1", [userId]);
+}
 
 router.post(
 	"/login",
