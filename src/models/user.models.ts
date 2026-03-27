@@ -46,24 +46,11 @@ export const UserModel = {
 		const result = await pool.query(sql, values);
 		return result.rows;
 	},
-	async getTokenUser(token: any) {
-		const query = `
-		SELECT 
-			id, 
-			role, 
-			display_name, 
-			profile_img_url, 
-			present_location 
-			FROM users 
-			WHERE id = $1
-		`;
-		const result = await pool.query(query, [token.id]);
-		return result.rows[0];
-	},
 	async emailCheck(email: string) {
 		const query = `
 		SELECT 
-		id 
+		id,
+		password 
 		FROM users 
 		WHERE email = $1`;
 
