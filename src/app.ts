@@ -4,6 +4,8 @@ const app = express();
 require('express-async-errors')
 const cors = require('cors');
 
+const AllowedOrigins = [process.env.FRONT_END_URL, process.env.FRONT_END_URL2, process.env.FRONT_END_URL3]
+
 import beerRoutes from "./routes/beerRoutes"
 import userRoutes from "./routes/userRoutes";
 import breweryRoutes from "./routes/breweryRoutes"
@@ -21,7 +23,7 @@ import { apiLogger } from "./utils/middleware/apiLogger";
 app.use(apiLogger);
 
 app.use(cors({
-  origin: process.env.FRONT_END_URL,
+  origin: AllowedOrigins,
   credentials: true,
 }));
 app.set('trust proxy', 1);
