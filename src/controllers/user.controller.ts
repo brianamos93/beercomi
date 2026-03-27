@@ -1,7 +1,6 @@
 // controllers/activityController.ts
 import { Request, Response, NextFunction } from "express";
 import { UserModel } from "../models/user.models";
-import { decodeToken } from "../utils/userlib";
 import path from "path";
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -13,11 +12,10 @@ export const UserController = {
 		try {
 			const userId = req.params.id;
 			const tables = await UserModel.getTablesWithActivityColumns();
-
+			
 			if (!tables.length) return [];
 
-			const entries = UserModel.getRecentActivityFromTables(tables, userId);
-
+			const entries = await UserModel.getRecentActivityFromTables(tables, userId);
 			res.json(entries);
 		} catch (error) {
 			next(error);
@@ -25,9 +23,7 @@ export const UserController = {
 	},
 	async getLoggedInUser(req: Request, res: Response, next: NextFunction) {
 		try {
-			const decodedToken = decodeToken(req);
-			if (!decodedToken.id) throw new Error("INVALID_TOKEN");
-			const userData = await UserModel.getTokenUser(decodeToken);
+			const userData = req.user
 			return res.status(200).json(userData);
 		} catch (error) {
 			next(error);
