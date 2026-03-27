@@ -23,6 +23,7 @@ import validate from "express-zod-safe";
 import { idParamSchema } from "../schemas/generalSchemas";
 import { activityLogger } from "../utils/middleware/activityLogger";
 import { fileValidator } from "../utils/middleware/fileTyper";
+import { UserModel } from "../models/user.models";
 const { authenticationHandler } = require("../utils/middleware");
 const express = require("express");
 
@@ -394,8 +395,8 @@ router.put(
 		if (!req.user || !req.user.id) {
 			return res.status(401).json({ error: "Unauthorized: user not found" });
 		}
-		const userData = await userIdGet(req.user.id);
-		const userRole = userData.rows[0].role;
+		const userData = await UserModel.getUser(req.user.id);
+		const userRole = userData.role;
 
 		if (req.user.id !== breweryuser.rows[0].author_id && userRole !== "admin") {
 			return res.status(400).json({ error: "User not authorized" });
