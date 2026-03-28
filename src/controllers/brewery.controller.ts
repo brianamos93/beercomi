@@ -49,5 +49,16 @@ export const breweryController = {
 		} catch (error) {
 			next(error)
 		}
+	},
+	async getBrewery(req: Request<IdParam>, res: Response, next: NextFunction) {
+		const breweryId = req.params.id
+		try {
+			const brewery = await BreweryModel.getBrewery(breweryId)
+			if (brewery.rowCount === 0) throw new Error("NO_BREWERY")
+			const result = await BreweryModel.getBreweryDetailed(breweryId)
+			return res.status(200).json(result)
+		} catch (error) {
+			next(error)
+		}
 	}
 };

@@ -191,4 +191,24 @@ export const BreweryModel = {
 			},
 		};
 	},
+	async getBreweryDetailed(breweryId: string) {
+		const query = `
+		SELECT 
+			breweries.id, 
+			breweries.name, 
+			breweries.location, 
+			breweries.date_of_founding,
+			breweries.cover_image, 
+			breweries.date_created, 
+			breweries.date_updated, 
+			brewery_authors.display_name AS author_name,
+			breweries.author_id
+		FROM breweries
+		LEFT JOIN users AS brewery_authors 
+			ON breweries.author_id = brewery_authors.id
+		WHERE breweries.id = $1 AND breweries.deleted_at IS NULL
+		`
+		const result = await pool.query(query, [breweryId]);
+		return result.rows[0];
+	}
 };

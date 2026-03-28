@@ -113,41 +113,7 @@ router.get(
 	"/:id",
 	express.json(),
 	validate({ params: idParamSchema }),
-	async (req: Request<Params>, res: Response) => {
-		const breweryId = req.params.id;
-
-		const brewerycheck = await brewerylookup(breweryId);
-
-		if (brewerycheck.rowCount == 0) {
-			return res.status(404).json({ error: "brewery does not exist" });
-		}
-		try {
-			const breweryResult = await pool.query(
-				`SELECT 
-                    breweries.id, 
-                    breweries.name, 
-                    breweries.location, 
-                    breweries.date_of_founding,
-                    breweries.cover_image, 
-                    breweries.date_created, 
-                    breweries.date_updated, 
-                    brewery_authors.display_name AS author_name,
-                    breweries.author_id
-                FROM breweries
-                LEFT JOIN users AS brewery_authors 
-                    ON breweries.author_id = brewery_authors.id
-                WHERE breweries.id = $1 AND breweries.deleted_at IS NULL`,
-				[breweryId],
-			);
-			if (breweryResult.rows.length === 0) {
-				return res.status(404).json({ error: "Brewery not found" });
-			}
-			res.json(breweryResult.rows[0]);
-		} catch (error) {
-			console.error("Error fetching brewery", error);
-			res.status(500).json({ error: "Error fetching brewery" });
-		}
-	},
+	breweryController.getBrewery
 );
 
 router.post(
