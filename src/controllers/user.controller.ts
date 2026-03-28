@@ -1,9 +1,8 @@
-// controllers/activityController.ts
 import { Request, Response, NextFunction } from "express";
 import { UserModel } from "../models/user.models";
 import path from "path";
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import fs from "fs";
 import sharp from "sharp";
 
@@ -12,10 +11,13 @@ export const UserController = {
 		try {
 			const userId = req.params.id;
 			const tables = await UserModel.getTablesWithActivityColumns();
-			
+
 			if (!tables.length) return [];
 
-			const entries = await UserModel.getRecentActivityFromTables(tables, userId);
+			const entries = await UserModel.getRecentActivityFromTables(
+				tables,
+				userId,
+			);
 			res.json(entries);
 		} catch (error) {
 			next(error);
@@ -23,7 +25,7 @@ export const UserController = {
 	},
 	async getLoggedInUser(req: Request, res: Response, next: NextFunction) {
 		try {
-			const userData = req.user
+			const userData = req.user;
 			return res.status(200).json(userData);
 		} catch (error) {
 			next(error);
@@ -120,6 +122,9 @@ export const UserController = {
 			const userForToken = {
 				id: userData.rows[0].id,
 			};
+			if (!process.env.SECRET) {
+				throw new Error("SECRET is not defined");
+			}
 			const token = jwt.sign(userForToken, process.env.SECRET, {
 				expiresIn: 60 * 60,
 			});
@@ -177,8 +182,8 @@ export const UserController = {
 			if (userData.role !== "admin") {
 				throw new Error("NOT_AUTHORIZED");
 			}
-			const result = UserModel.updateUserRole({role: role, userId: userID})
-			res.status(200).json((await result).rows[0])
+			const result = UserModel.updateUserRole({ role: role, userId: userID });
+			res.status(200).json((await result).rows[0]);
 		} catch (error) {
 			next(error);
 		}
