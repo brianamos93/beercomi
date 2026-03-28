@@ -24,6 +24,8 @@ import { idParamSchema } from "../schemas/generalSchemas";
 import { activityLogger } from "../utils/middleware/activityLogger";
 import { fileValidator } from "../utils/middleware/fileTyper";
 import { UserModel } from "../models/user.models";
+import { Brewery } from "../defs/brewery.defs";
+import { breweryController } from "../controllers/brewery.controller";
 const { authenticationHandler } = require("../utils/middleware");
 const express = require("express");
 
@@ -41,17 +43,6 @@ declare module "express-serve-static-core" {
 	}
 }
 type Params = { id: string };
-
-interface Brewery {
-	id: number;
-	name: string;
-	location: string;
-	date_of_founding: string;
-	date_created: Date;
-	date_updated: Date;
-	author_id: string;
-	owner: string;
-}
 
 const fileFilter = (
 	_req: Request,
@@ -104,160 +95,17 @@ router.get(
 	"/",
 	express.json(),
 	validate({ query: searchQuerySchema }),
-	async (
-		req: Request<Record<string, never>, unknown, unknown, SearchQueryType>,
-		res: Response,
-	) => {
-		try {
-			const limit = Number(req.query.limit) || 10;
-			const offset = Number(req.query.offset) || 0;
-			const searchQuery = req.query.q ? `%${req.query.q}%` : null;
-
-			const filters: string[] = ["breweries.deleted_at IS NULL"];
-			const filterParams: any[] = [];
-
-			if (searchQuery) {
-				filterParams.push(searchQuery);
-				const paramIndex = filterParams.length;
-
-				filters.push(`
-          (
-            breweries.name ILIKE $${paramIndex}
-            OR breweries.location ILIKE $${paramIndex}
-            OR breweries.date_of_founding::TEXT ILIKE $${paramIndex}
-            OR breweries.date_created::TEXT ILIKE $${paramIndex}
-            OR breweries.date_updated::TEXT ILIKE $${paramIndex}
-          )
-        `);
-			}
-
-			const whereClause = `WHERE ${filters.join(" AND ")}`;
-
-			const mainParams = [...filterParams];
-
-			mainParams.push(limit);
-			const limitParamIndex = mainParams.length;
-
-			mainParams.push(offset);
-			const offsetParamIndex = mainParams.length;
-
-			const mainQuery = `
-        SELECT 
-          breweries.id, 
-          breweries.name, 
-          breweries.location, 
-          breweries.date_of_founding,
-		  breweries.cover_image, 
-          breweries.date_created, 
-          breweries.date_updated, 
-          breweries.author_id, 
-          brewery_authors.display_name AS author_name 
-        FROM breweries 
-        LEFT JOIN users AS brewery_authors 
-          ON breweries.author_id = brewery_authors.id 
-        ${whereClause}
-        ORDER BY breweries.date_updated DESC
-        LIMIT $${limitParamIndex}
-        OFFSET $${offsetParamIndex}
-      `;
-
-			const countQuery = `
-        SELECT COUNT(*) 
-        FROM breweries
-        ${whereClause}
-      `;
-
-			const [breweriesResult, countResult] = await Promise.all([
-				pool.query(mainQuery, mainParams),
-				pool.query(countQuery, filterParams),
-			]);
-
-			const breweries: Brewery[] = breweriesResult.rows;
-			const totalItems = parseInt(countResult.rows[0].count, 10);
-
-			res.json({
-				pagination: {
-					total: totalItems,
-					limit,
-					offset,
-				},
-				data: breweries,
-			});
-		} catch (error) {
-			console.error("Error fetching breweries:", error);
-			res.status(500).json({ error: "Error fetching breweries" });
-		}
-	},
+	breweryController.getBrewerySearch,
 );
 
-router.get("/list", express.json(), async (req: Request, res: Response) => {
-	try {
-		const result = await pool.query(
-			"SELECT id FROM breweries WHERE deleted_at IS NULL",
-		);
-		const breweries: Brewery[] = result.rows;
-		res.json(breweries);
-	} catch (error) {
-		console.error("Error fetching breweries", error);
-		res.status(500).json({ error: "Error fetching breweries" });
-	}
-});
+router.get("/list", express.json(), breweryController.getAllBreweries);
 
 // GET /breweries/:id/beers
 router.get(
 	"/:id/beers",
 	express.json(),
 	validate({ params: idParamSchema, query: querySchema }),
-	async (req: Request<Params, unknown, unknown, QueryType>, res: Response) => {
-		const breweryId = req.params.id;
-		const limit = req.query.limit || 10;
-		const offset = req.query.offset || 0;
-
-		const brewerycheck = await brewerylookup(breweryId);
-
-		if (brewerycheck.rowCount == 0) {
-			return res.status(404).json({ error: "brewery does not exist" });
-		}
-		try {
-			const beersResult = await pool.query(
-				`SELECT 
-                    beers.id,
-                    beers.name,
-                    beers.style,
-                    beers.ibu,
-                    beers.abv / 10.0 AS abv,
-                    beers.color,
-                    beers.description,
-                    beers.cover_image,
-                    beers.date_created,
-                    beers.date_updated,
-                    beers.author_id,
-                    beer_authors.display_name AS author_name
-                FROM beers
-                LEFT JOIN users AS beer_authors ON beers.author_id = beer_authors.id
-                WHERE beers.brewery_id = $1 AND beers.deleted_at IS NULL
-                ORDER BY beers.date_created DESC
-                LIMIT $2 OFFSET $3`,
-				[breweryId, limit, offset],
-			);
-			const countResult = await pool.query(
-				`SELECT COUNT(*) FROM beers WHERE brewery_id = $1 AND deleted_at IS NULL`,
-				[breweryId],
-			);
-			const totalBeers = Number(countResult.rows[0].count);
-			res.json({
-				beers: beersResult.rows,
-				pagination: {
-					total: totalBeers,
-					limit,
-					offset,
-				},
-			});
-		} catch (error) {
-			console.error("Error fetching beers", error);
-			res.status(500).json({ error: "Error fetching beers" });
-		}
-	},
+	breweryController.getBreweryBeers
 );
 
 // GET /breweries/:id
