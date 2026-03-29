@@ -31,9 +31,11 @@ export const errorHandler = (
 	if(err.message === "INVALID_EMAIL_OR_PASSWORD") {
 		res.status(401).json({error: "Invalid email or password"})
 	}
+	
 	if(err.message === "NOT_AUTHORIZED") {
 		res.status(401).json({error: "Not authorized"})
 	}
+
 	if(err.message === "NO_BREWERY") {
 		res.status(404).json({error: "Brewery not found"})
 	}
