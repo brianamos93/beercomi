@@ -18,7 +18,7 @@ export const breweryController = {
 		const offset = Number(req.query.offset) || 0;
 		const searchQuery = req.query.q ? `%${req.query.q}%` : null;
 		try {
-			const result = BreweryModel.getBrewerySearch({
+			const result = await BreweryModel.getBrewerySearch({
 				query: searchQuery,
 				limit: limit,
 				offset: offset,
@@ -30,7 +30,7 @@ export const breweryController = {
 	},
 	async getAllBreweries(_req: Request, res: Response, next: NextFunction) {
 		try {
-			const result = await breweryController.getAllBreweries;
+			const result = await BreweryModel.getAllBreweriesList();
 			return res.status(200).json(result);
 		} catch (error) {
 			next(error);
@@ -113,6 +113,7 @@ export const breweryController = {
 				deleteCoverImageData({
 					id: breweryID,
 					coverImagePath: breweryData.rows[0].cover_image,
+					type: 'brewery'
 				});
 			}
 			const imageFilePath = await imageUpload({ req: req });
