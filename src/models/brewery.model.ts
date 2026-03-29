@@ -238,6 +238,47 @@ export const BreweryModel = {
 			date_of_founding,
 			filePath,
 		]);
+		return result.rows[0];
+	},
+	async updateBrewery({
+		name,
+		location,
+		date_of_founding,
+		relativeUploadFilePathAndFile,
+		breweryID,
+	}: {
+		name: string;
+		location: string;
+		date_of_founding: string;
+		relativeUploadFilePathAndFile: string;
+		breweryID: string;
+	}) {
+		const query = `
+		UPDATE breweries 
+		SET 
+			name = $1, 
+			location = $2, 
+			date_of_founding = $3, 
+			cover_image = $4 
+			WHERE id = $5
+		`;
+		const result = await pool.query(query, [
+			name,
+			location,
+			date_of_founding,
+			relativeUploadFilePathAndFile,
+			breweryID,
+		]);
+
 		return result.rows[0]
 	},
+	async nullCoverImage(breweryId: string) {
+		const query = `
+		UPDATE breweries 
+		SET cover_image = NULL 
+		WHERE id = $1
+		`
+		const result = await pool.query(query, [breweryId])
+		return result
+	}
 };

@@ -2,9 +2,9 @@ import { Request, Response, NextFunction } from "express";
 import { BreweryModel } from "../models/brewery.model";
 import { SearchQueryType } from "../schemas/querySchema";
 import { IdParam } from "../schemas/generalSchemas";
-import { imageUpload } from "../utils/lib/ImageUpload";
+import { deleteCoverImageData, imageUpload } from "../utils/lib/ImageUpload";
 import { MulterRequest } from "../defs/general.defs";
-import { BeerInput } from "../schemas/brewerySchemas";
+import { BeerInput, EditBreweryInput } from "../schemas/brewerySchemas";
 
 export const breweryController = {
 	async getBrewerySearch(
@@ -67,7 +67,11 @@ export const breweryController = {
 			next(error);
 		}
 	},
-	async postBrewery(req: MulterRequest<BeerInput>, res: Response, next: NextFunction) {
+	async postBrewery(
+		req: MulterRequest<BeerInput>,
+		res: Response,
+		next: NextFunction,
+	) {
 		const { name, location, date_of_founding } = req.body;
 		try {
 			let filePath = null;
@@ -81,7 +85,38 @@ export const breweryController = {
 				filePath: filePath,
 			});
 			res.locals.createdBrewery = createdBrewery.id;
-			res.status(200).json(createdBrewery)
+			res.status(200).json(createdBrewery);
+		} catch (error) {
+			next(error);
+		}
+	},
+	async putBrewery(
+		req: MulterRequest<EditBreweryInput>,
+		res: Response,
+		next: NextFunction,
+	) {
+		const breweryID = req.params.id;
+		const { name, location, date_of_founding, deleteCoverImage } = req.body;
+		try {
+			const breweryData = await BreweryModel.getBrewery(breweryID);
+			if (breweryData.rowCount === 0) throw new Error("NO_BREWERY");
+			if (
+				req.user!.id !== breweryData.rows[0].author_id &&
+				req.user!.role !== "admin"
+			) {
+				throw new Error("NOT_AUTHORIZED");
+			}
+
+			if (deleteCoverImage === true) {
+				deleteCoverImageData({
+					id: breweryID,
+					coverImagePath: breweryData.rows[0].cover_image,
+				});
+			}
+			const imageFilePath = await imageUpload({req: req})
+
+			const result = await BreweryModel.updateBrewery({name: name, location: location, date_of_founding: date_of_founding, relativeUploadFilePathAndFile: imageFilePath, breweryID: breweryID})
+			return res.status(200).json(result)
 		} catch (error) {
 			next(error);
 		}
