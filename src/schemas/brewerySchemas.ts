@@ -40,6 +40,8 @@ export const BrewerySchemaBase = z.object({
 
 const allowedStringValues = ['true', 'false'] as const;
 
+export type BeerInput = z.infer<typeof BrewerySchemaBase>;
+
 export const EditBrewerySchema = BrewerySchemaBase.extend({
 	deleteCoverImage: z.enum(allowedStringValues),
 });
