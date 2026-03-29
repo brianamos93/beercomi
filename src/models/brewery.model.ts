@@ -133,14 +133,14 @@ export const BreweryModel = {
 	},
 	async getAllBreweriesList() {
 		const query = `
-			SELECT 
-			id 
-			FROM 
+			SELECT
+			id
+			FROM
 			breweries 
 			WHERE deleted_at IS NULL
 			`;
 		const result = await pool.query(query);
-		return result;
+		return result.rows;
 	},
 	async getBreweryBeers({
 		id,
@@ -184,7 +184,7 @@ export const BreweryModel = {
 		const totalBeers = Number(countResults.rows[0].count);
 
 		return {
-			beers: beersResult.rows,
+			...beersResult.rows,
 			pagination: {
 				total: totalBeers,
 				limit,
@@ -399,7 +399,7 @@ export const BreweryModel = {
 
 			// Restore reviews
 			await client.query(
-			`UPDATE beer_reviews r
+				`UPDATE beer_reviews r
 			 SET deleted_at = NULL
 			 FROM beers b
 			 WHERE r.beer_id = b.id
@@ -410,7 +410,7 @@ export const BreweryModel = {
 
 			// Restore beers
 			await client.query(
-			`UPDATE beers
+				`UPDATE beers
 			 SET deleted_at = NULL
 			 WHERE brewery_id = $1
 			 AND deleted_at = $2`,
@@ -419,7 +419,7 @@ export const BreweryModel = {
 
 			// Restore brewery
 			await client.query(
-			`UPDATE breweries
+				`UPDATE breweries
 			 SET deleted_at = NULL
 			 WHERE id = $1`,
 				[breweryID],
@@ -433,7 +433,7 @@ export const BreweryModel = {
 			client.release();
 		}
 	},
-	async hardDeleteBrewery (breweryID: string) {
+	async hardDeleteBrewery(breweryID: string) {
 		const client = await pool.connect();
 		const filesToDelete: string[] = [];
 
@@ -441,7 +441,7 @@ export const BreweryModel = {
 			await client.query("BEGIN");
 
 			// brewery
-			const breweryData = await BreweryModel.getBrewery(breweryID)
+			const breweryData = await BreweryModel.getBrewery(breweryID);
 
 			if (breweryData.rowCount === 0) {
 				await client.query("ROLLBACK");
@@ -450,21 +450,19 @@ export const BreweryModel = {
 
 			if (breweryData.rows[0].cover_image) {
 				filesToDelete.push(
-					path.join(__dirname, "..", breweryData.rows[0].cover_image)
+					path.join(__dirname, "..", breweryData.rows[0].cover_image),
 				);
 			}
 
 			// beers
 			const beerImages = await client.query(
 				`SELECT cover_image FROM beers WHERE brewery_id = $1`,
-				[breweryID]
+				[breweryID],
 			);
 
 			for (const beer of beerImages.rows) {
 				if (beer.cover_image) {
-					filesToDelete.push(
-						path.join(__dirname, "..", beer.cover_image)
-					);
+					filesToDelete.push(path.join(__dirname, "..", beer.cover_image));
 				}
 			}
 
@@ -477,14 +475,12 @@ export const BreweryModel = {
 				INNER JOIN beers b ON br.beer_id = b.id
 				WHERE b.brewery_id = $1
 				`,
-				[breweryID]
+				[breweryID],
 			);
 
 			for (const photo of reviewPhotos.rows) {
 				if (photo.photo_url) {
-					filesToDelete.push(
-						path.join(__dirname, "..", photo.photo_url)
-					);
+					filesToDelete.push(path.join(__dirname, "..", photo.photo_url));
 				}
 			}
 
@@ -497,7 +493,7 @@ export const BreweryModel = {
 						SELECT id FROM beers WHERE brewery_id = $1
 					)
 				)`,
-				[breweryID]
+				[breweryID],
 			);
 
 			await client.query(
@@ -505,18 +501,14 @@ export const BreweryModel = {
 				WHERE beer_id IN (
 					SELECT id FROM beers WHERE brewery_id = $1
 				)`,
-				[breweryID]
+				[breweryID],
 			);
 
-			await client.query(
-				`DELETE FROM beers WHERE brewery_id = $1`,
-				[breweryID]
-			);
+			await client.query(`DELETE FROM beers WHERE brewery_id = $1`, [
+				breweryID,
+			]);
 
-			await client.query(
-				`DELETE FROM breweries WHERE id = $1`,
-				[breweryID]
-			);
+			await client.query(`DELETE FROM breweries WHERE id = $1`, [breweryID]);
 
 			await client.query("COMMIT");
 
@@ -527,5 +519,5 @@ export const BreweryModel = {
 		} finally {
 			client.release();
 		}
-	}
+	},
 };
