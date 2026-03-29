@@ -17,7 +17,6 @@ import {
 	querySchema,
 	QueryType,
 	searchQuerySchema,
-	SearchQueryType,
 } from "../schemas/querySchema";
 import validate from "express-zod-safe";
 import { idParamSchema } from "../schemas/generalSchemas";
@@ -105,7 +104,7 @@ router.get(
 	"/:id/beers",
 	express.json(),
 	validate({ params: idParamSchema, query: querySchema }),
-	breweryController.getBreweryBeers
+	breweryController.getBreweryBeers,
 );
 
 // GET /breweries/:id
@@ -113,9 +112,9 @@ router.get(
 	"/:id",
 	express.json(),
 	validate({ params: idParamSchema }),
-	breweryController.getBrewery
+	breweryController.getBrewery,
 );
-
+// POST /
 router.post(
 	"/",
 	authenticationHandler,
@@ -127,55 +126,7 @@ router.post(
 		entityType: "breweries",
 		getEntityId: (_req, res) => res.locals.createdBrewery,
 	}),
-	async (req: Request, res: Response) => {
-		const { name, location, date_of_founding } = req.body;
-
-		let newFileName = null;
-		let relativeUploadFilePathAndFile = null;
-
-		if (!req.user || !req.user.id) {
-			return res.status(401).json({ error: "Unauthorized: user not found" });
-		}
-		const user = await pool.query("SELECT * FROM users WHERE id = $1", [
-			req.user.id,
-		]);
-		//Process uploaded file
-		if (req.file) {
-			const uploadPath = path.join(__dirname, "..", `uploads/`);
-			if (!fs.existsSync(uploadPath)) {
-				fs.mkdirSync(uploadPath, { recursive: true });
-			}
-			const ext: string =
-				req.file && req.file.originalname
-					? path.extname(req.file.originalname)
-					: "";
-			newFileName = `CoverImage-${Date.now()}${ext}`;
-			const uploadFilePathAndFile = path.join(uploadPath, newFileName);
-			await sharp(req.file.buffer)
-				.webp({ lossless: true })
-				.resize(800, 600, { fit: "cover" })
-				.toFile(uploadFilePathAndFile);
-			relativeUploadFilePathAndFile = `/uploads/${newFileName}`;
-		}
-		try {
-			const result = await pool.query(
-				"INSERT INTO breweries (name, location, date_of_founding, author_id, cover_image) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-				[
-					name,
-					location,
-					date_of_founding,
-					user.rows[0].id,
-					relativeUploadFilePathAndFile,
-				],
-			);
-			const createdBrewery: Brewery = result.rows[0];
-			res.locals.createdBrewery = createdBrewery.id;
-			res.status(201).json(createdBrewery);
-		} catch (error) {
-			console.error("Error adding brewery", error);
-			res.status(500).json({ error: "Error adding brewery" });
-		}
-	},
+	breweryController.postBrewery,
 );
 
 router.put(

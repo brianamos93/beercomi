@@ -88,24 +88,24 @@ export const BreweryModel = {
 		const offsetParamIndex = mainParams.length;
 
 		const mainQuery = `
-				SELECT 
-					breweries.id, 
-					breweries.name, 
-					breweries.location, 
-					breweries.date_of_founding,
-					breweries.cover_image, 
-					breweries.date_created, 
-					breweries.date_updated, 
-					breweries.author_id, 
-					brewery_authors.display_name AS author_name 
-				FROM breweries 
-				LEFT JOIN users AS brewery_authors 
-				ON breweries.author_id = brewery_authors.id 
-				${whereClause}
-				ORDER BY breweries.date_updated DESC
-				LIMIT $${limitParamIndex}
-				OFFSET $${offsetParamIndex}
-				`;
+			SELECT 
+				breweries.id, 
+				breweries.name, 
+				breweries.location, 
+				breweries.date_of_founding,
+				breweries.cover_image, 
+				breweries.date_created, 
+				breweries.date_updated, 
+				breweries.author_id, 
+				brewery_authors.display_name AS author_name 
+			FROM breweries 
+			LEFT JOIN users AS brewery_authors 
+			ON breweries.author_id = brewery_authors.id 
+			${whereClause}
+			ORDER BY breweries.date_updated DESC
+			LIMIT $${limitParamIndex}
+			OFFSET $${offsetParamIndex}
+			`;
 
 		const countQuery = `
 			SELECT COUNT(*) 
@@ -207,8 +207,37 @@ export const BreweryModel = {
 		LEFT JOIN users AS brewery_authors 
 			ON breweries.author_id = brewery_authors.id
 		WHERE breweries.id = $1 AND breweries.deleted_at IS NULL
-		`
+		`;
 		const result = await pool.query(query, [breweryId]);
 		return result.rows[0];
-	}
+	},
+	async postBrewery({
+		name,
+		location,
+		date_of_founding,
+		filePath,
+	}: {
+		name: string;
+		location: string;
+		date_of_founding: string;
+		filePath: string | null;
+	}) {
+		const query = `
+		INSERT INTO breweries 
+			(name, 
+			location, 
+			date_of_founding, 
+			author_id, 
+			cover_image) 
+			VALUES ($1, $2, $3, $4, $5) 
+			RETURNING *
+		`;
+		const result = await pool.query(query, [
+			name,
+			location,
+			date_of_founding,
+			filePath,
+		]);
+		return result.rows[0]
+	},
 };
