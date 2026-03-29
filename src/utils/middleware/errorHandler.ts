@@ -33,7 +33,7 @@ export const errorHandler = (
 	}
 	
 	if(err.message === "NOT_AUTHORIZED") {
-		res.status(401).json({error: "Not authorized"})
+		res.status(403).json({error: "Not authorized"})
 	}
 
 	if(err.message === "NO_BREWERY") {
