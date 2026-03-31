@@ -40,6 +40,10 @@ export const errorHandler = (
 		res.status(404).json({error: "Brewery not found"})
 	}
 
+	if(err.message === "NO_BEER") {
+		res.status(404).json({error: "Beer not found"})
+	}
+
 	res.status(500).json({
 		message: "Internal Server Error",
 	});
