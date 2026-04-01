@@ -33,7 +33,6 @@ app.use(limiter)
 app.use("/beers", beerRoutes);
 app.use("/breweries", breweryRoutes)
 app.use("/search", searchRoutes)
-app.use("/stores", storesRoutes)
 app.use("/recent", recentRoutes)
 app.use("/favorites", favorteRoutes)
 app.use("/admin/activitylog", activityRoutes)
