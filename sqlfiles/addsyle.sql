@@ -1,1 +1,0 @@
-ALTER TABLE beers ADD COLUMN style TEXT
