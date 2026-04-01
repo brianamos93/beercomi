@@ -10,7 +10,6 @@ import beerRoutes from "./routes/beerRoutes"
 import userRoutes from "./routes/userRoutes";
 import breweryRoutes from "./routes/breweryRoutes"
 import searchRoutes from "./routes/searchRoute"
-import storesRoutes from "./routes/storeRoutes"
 import recentRoutes from "./routes/recentactivtyRoutes"
 import favorteRoutes from "./routes/favoriteRoute"
 import activityRoutes from "./routes/activityLog"
