@@ -302,7 +302,7 @@ router.get(
 			const totalReviews = Number(totalResult.rows[0].count);
 
 			res.json({
-				...reviewsResult.rows,
+				reviews: reviewsResult.rows,
 				pagination: {
 					total: totalReviews,
 					limit,
