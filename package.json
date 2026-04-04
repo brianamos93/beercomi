@@ -2,7 +2,7 @@
   "dependencies": {
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "express-async-errors": "^3.1.1",
     "express-rate-limit": "^8.3.1",
@@ -50,7 +50,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon -L --watch src --ext js,ts,json --exec ts-node --files ./src/index.ts",
+    "dev": "nodemon -L --watch src --ext js,ts,json --exec ts-node -r dotenv/config ./src/index.ts",
     "build": "tsc",
     "start": "node ./src/index.js",
     "check-types": "tsc --noEmit",
