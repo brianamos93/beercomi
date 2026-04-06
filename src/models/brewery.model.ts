@@ -184,7 +184,7 @@ export const BreweryModel = {
 		const totalBeers = Number(countResults.rows[0].count);
 
 		return {
-			...beersResult.rows,
+			beers: beersResult.rows,
 			pagination: {
 				total: totalBeers,
 				limit,
